@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="ArcGISMonitorExcelReporter/ArcGISMonitorExcelReporter.csproj" />
+  <Project Path="ArcGISMonitorExcelReporterLib/ArcGISMonitorExcelReporterLib.csproj" />
+</Solution>

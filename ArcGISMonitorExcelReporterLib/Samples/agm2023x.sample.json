@@ -1,0 +1,32 @@
+{
+  "server": {
+    "url": "https://monitor.example.com:30443/arcgis",
+    "username": "usuario",
+    "password": "cambiar_por_password_o_base64",
+    "password_encoding": false,
+    "ignore_ssl_errors": false
+  },
+  "report": {
+    "collection": "Sample Collection",
+    "timezone": "America/Bogota",
+    "end_time": {
+      "now": true,
+      "year": 2021,
+      "month": 10,
+      "day": 4,
+      "hour": 19
+    },
+    "past_days": 5,
+    "past_hours": 0,
+    "types": ["host", "storage", "service", "database"],
+    "metrics": {
+      "alerting_on_only": false,
+      "include_only": [],
+      "exclude_metrics": []
+    },
+    "page_size": 100,
+    "metric_bucket": "observed_at:15m",
+    "include_metric_time_series": true,
+    "max_metric_ids_for_time_series": 5000
+  }
+}
