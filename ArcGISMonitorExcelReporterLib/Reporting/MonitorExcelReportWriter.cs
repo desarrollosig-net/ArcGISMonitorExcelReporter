@@ -1,5 +1,6 @@
 using ClosedXML.Excel;
 using System.Reflection;
+using Serilog;
 
 namespace ArcGISMonitorExcelReporterLib.Reporting;
 
@@ -9,47 +10,70 @@ public sealed class MonitorExcelReportWriter
     {
         ArgumentNullException.ThrowIfNull(report);
         if (string.IsNullOrWhiteSpace(outputPath))
-            throw new ArgumentException("La ruta del archivo Excel es obligatoria.", nameof(outputPath));
+            throw new ArgumentException("Excel file path is required.", nameof(outputPath));
+
+        Log.Information("Creating Excel workbook...");
 
         var directory = Path.GetDirectoryName(Path.GetFullPath(outputPath));
         if (!string.IsNullOrWhiteSpace(directory))
+        {
             Directory.CreateDirectory(directory);
+            Log.Debug("Output directory: {Directory}", directory);
+        }
 
         using var workbook = new XLWorkbook();
         var sheetRegistry = new SheetRegistry(workbook);
 
+        Log.Debug("Writing Summary sheet...");
         WriteSummary(workbook, sheetRegistry, report);
-        WriteTableSheet(workbook, sheetRegistry, "Colecciones", report.Collections);
-        WriteTableSheet(workbook, sheetRegistry, "Componentes", report.Components);
-        WriteTableSheet(workbook, sheetRegistry, "Metricas", report.Metrics);
-        WriteTableSheet(workbook, sheetRegistry, "Datos_Metricas", report.MetricData);
-        WriteTableSheet(workbook, sheetRegistry, "Alertas", report.Alerts);
 
+        Log.Debug("Writing Collections sheet ({Count} rows)...", report.Collections.Count);
+        WriteTableSheet(workbook, sheetRegistry, "Collections", report.Collections);
+
+        Log.Debug("Writing Components sheet ({Count} rows)...", report.Components.Count);
+        WriteTableSheet(workbook, sheetRegistry, "Components", report.Components);
+
+        Log.Debug("Writing Metrics sheet ({Count} rows)...", report.Metrics.Count);
+        WriteTableSheet(workbook, sheetRegistry, "Metrics", report.Metrics);
+
+        Log.Debug("Writing Metric_Data sheet ({Count} rows)...", report.MetricData.Count);
+        WriteTableSheet(workbook, sheetRegistry, "Metric_Data", report.MetricData);
+
+        Log.Debug("Writing Alerts sheet ({Count} rows)...", report.Alerts.Count);
+        WriteTableSheet(workbook, sheetRegistry, "Alerts", report.Alerts);
+
+        Log.Debug("Writing collection-specific sheets...");
         WriteCollectionSheets(workbook, sheetRegistry, report);
+
+        Log.Debug("Writing metric-specific sheets...");
         WriteMetricSheets(workbook, sheetRegistry, report);
 
+        Log.Information("Saving Excel file to: {OutputPath}", outputPath);
         workbook.SaveAs(outputPath);
+
+        var fileInfo = new FileInfo(outputPath);
+        Log.Information("Excel file saved successfully. Size: {Size:N0} bytes", fileInfo.Length);
     }
 
     private static void WriteSummary(XLWorkbook workbook, SheetRegistry sheetRegistry, MonitorExcelReport report)
     {
-        var ws = workbook.Worksheets.Add("Resumen");
-        sheetRegistry.Register("Resumen", "Resumen");
+        var ws = workbook.Worksheets.Add("Summary");
+        sheetRegistry.Register("Summary", "Summary");
 
-        ws.Cell(1, 1).Value = "ArcGIS Monitor - Reporte Excel";
+        ws.Cell(1, 1).Value = "ArcGIS Monitor - Excel Report";
         ws.Cell(1, 1).Style.Font.Bold = true;
         ws.Cell(1, 1).Style.Font.FontSize = 16;
 
         var metadata = new (string Label, object? Value)[]
         {
-            ("Generado UTC", report.GeneratedAtUtc),
-            ("Desde UTC", report.FromUtc),
-            ("Hasta UTC", report.ToUtc),
-            ("Colecciones", report.Collections.Count),
-            ("Componentes", report.Components.Count),
-            ("Métricas", report.Metrics.Count),
-            ("Datos de métricas", report.MetricData.Count),
-            ("Alertas", report.Alerts.Count)
+            ("Generated UTC", report.GeneratedAtUtc),
+            ("From UTC", report.FromUtc),
+            ("To UTC", report.ToUtc),
+            ("Collections", report.Collections.Count),
+            ("Components", report.Components.Count),
+            ("Metrics", report.Metrics.Count),
+            ("Metric Data", report.MetricData.Count),
+            ("Alerts", report.Alerts.Count)
         };
 
         var row = 3;
@@ -61,25 +85,25 @@ public sealed class MonitorExcelReportWriter
         }
 
         row += 2;
-        ws.Cell(row, 1).Value = "Índice";
+        ws.Cell(row, 1).Value = "Index";
         ws.Cell(row, 1).Style.Font.Bold = true;
         row++;
 
-        WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Colecciones"), "Colecciones", "Resumen de colecciones consultadas");
-        WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Componentes"), "Componentes", "Inventario de componentes retornados");
-        WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Metricas"), "Metricas", "Catálogo de métricas asociadas a componentes");
-        WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Datos_Metricas"), "Datos_Metricas", "Series o agregados de datos de métricas");
-        WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Alertas"), "Alertas", "Alertas asociadas a las métricas consultadas");
+        WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Collections"), "Collections", "Summary of queried collections");
+        WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Components"), "Components", "Inventory of returned components");
+        WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Metrics"), "Metrics", "Catalog of metrics associated with components");
+        WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Metric_Data"), "Metric_Data", "Series or aggregates of metric data");
+        WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Alerts"), "Alerts", "Alerts associated with queried metrics");
 
         row += 1;
-        ws.Cell(row, 1).Value = "Colecciones consultadas";
+        ws.Cell(row, 1).Value = "Queried Collections";
         ws.Cell(row, 1).Style.Font.Bold = true;
         row++;
-        ws.Cell(row, 1).Value = "Colección";
-        ws.Cell(row, 2).Value = "Tipo componente";
-        ws.Cell(row, 3).Value = "Componentes";
-        ws.Cell(row, 4).Value = "Métricas";
-        ws.Cell(row, 5).Value = "Alertas";
+        ws.Cell(row, 1).Value = "Collection";
+        ws.Cell(row, 2).Value = "Component Type";
+        ws.Cell(row, 3).Value = "Components";
+        ws.Cell(row, 4).Value = "Metrics";
+        ws.Cell(row, 5).Value = "Alerts";
         ws.Range(row, 1, row, 5).Style.Font.Bold = true;
         row++;
 
@@ -95,11 +119,11 @@ public sealed class MonitorExcelReportWriter
         }
 
         row += 1;
-        ws.Cell(row, 1).Value = "Métricas";
+        ws.Cell(row, 1).Value = "Metrics";
         ws.Cell(row, 1).Style.Font.Bold = true;
         row++;
-        ws.Cell(row, 1).Value = "Métrica";
-        ws.Cell(row, 2).Value = "Cantidad";
+        ws.Cell(row, 1).Value = "Metric";
+        ws.Cell(row, 2).Value = "Count";
         ws.Range(row, 1, row, 2).Style.Font.Bold = true;
         row++;
 
@@ -125,9 +149,9 @@ public sealed class MonitorExcelReportWriter
             var ws = workbook.Worksheets.Add(sheetRegistry.GetOrCreatePhysicalName(logicalName));
             WriteBackToIndex(ws);
 
-            ws.Cell(2, 1).Value = "Colección";
+            ws.Cell(2, 1).Value = "Collection";
             ws.Cell(2, 2).Value = collection.CollectionName;
-            ws.Cell(3, 1).Value = "Tipo componente";
+            ws.Cell(3, 1).Value = "Component Type";
             ws.Cell(3, 2).Value = collection.ComponentType;
 
             var rows = report.Components
@@ -148,7 +172,7 @@ public sealed class MonitorExcelReportWriter
             var ws = workbook.Worksheets.Add(sheetRegistry.GetOrCreatePhysicalName(logicalName));
             WriteBackToIndex(ws);
 
-            ws.Cell(2, 1).Value = "Métrica";
+            ws.Cell(2, 1).Value = "Metric";
             ws.Cell(2, 2).Value = metricGroup.Key;
 
             WriteRows(ws, 4, metricGroup.OrderBy(m => m.CollectionName).ThenBy(m => m.ComponentName).ToList());
@@ -168,7 +192,7 @@ public sealed class MonitorExcelReportWriter
 
         if (properties.Length == 0)
         {
-            ws.Cell(startRow, 1).Value = "Sin columnas.";
+            ws.Cell(startRow, 1).Value = "No columns.";
             return;
         }
 
@@ -198,7 +222,7 @@ public sealed class MonitorExcelReportWriter
 
     private static void WriteBackToIndex(IXLWorksheet ws)
     {
-        ws.Cell(1, 1).FormulaA1 = HyperlinkFormula("Resumen", "Volver al índice");
+        ws.Cell(1, 1).FormulaA1 = HyperlinkFormula("Summary", "Back to index");
         ws.Cell(1, 1).Style.Font.Bold = true;
     }
 
@@ -304,7 +328,7 @@ public sealed class MonitorExcelReportWriter
             var sanitized = new string(chars).Trim();
 
             if (string.IsNullOrWhiteSpace(sanitized))
-                sanitized = "Hoja";
+                sanitized = "Sheet";
 
             return sanitized.Length <= 31 ? sanitized : sanitized[..31];
         }

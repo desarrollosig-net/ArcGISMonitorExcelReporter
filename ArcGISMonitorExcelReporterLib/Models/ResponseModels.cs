@@ -210,6 +210,7 @@ public sealed class MetricDataAttributes
     [JsonPropertyName("MAX_value")] public double? MaxValue { get; set; }
     [JsonPropertyName("SUM_value")] public double? SumValue { get; set; }
     [JsonPropertyName("STDDEV_value")] public double? StdDevValue { get; set; }
+    [JsonPropertyName("PERCENTILE_95_value")] public double? Percentile95Value { get; set; }
 }
 
 public sealed class AlertAttributes

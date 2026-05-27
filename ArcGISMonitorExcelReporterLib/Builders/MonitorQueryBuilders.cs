@@ -4,7 +4,7 @@ namespace ArcGISMonitorExcelReporterLib.Builders;
 
 public static class MonitorQueryBuilders
 {
-    public static MonitoringQueryRequest CollectionComponents(
+    public static CollectionQueryRequest CollectionComponents(
         string collectionName,
         string componentType,
         bool returnCountOnly,
@@ -18,23 +18,23 @@ public static class MonitorQueryBuilders
         bool includeAgents = true,
         bool includeMetricsObserver = true)
     {
-        var childIncludes = new List<IncludeSpec>();
+        var childIncludes = new List<CollectionIncludeSpec>();
 
         if (includeLogs && fromUtc.HasValue && toUtc.HasValue)
         {
-            childIncludes.Add(new IncludeSpec
+            childIncludes.Add(new CollectionIncludeSpec
             {
                 Resource = "components_logs",
                 Where = BetweenTimestamp("logged_at", fromUtc.Value, toUtc.Value)
             });
         }
 
-        if (includeLabels) childIncludes.Add(new IncludeSpec { Resource = "labels" });
-        if (includeParents) childIncludes.Add(new IncludeSpec { Resource = "parents" });
-        if (includeAgents) childIncludes.Add(new IncludeSpec { Resource = "agents" });
-        if (includeMetricsObserver) childIncludes.Add(new IncludeSpec { Resource = "observers", Where = "name='Metrics'" });
+        if (includeLabels) childIncludes.Add(new CollectionIncludeSpec { Resource = "labels" });
+        if (includeParents) childIncludes.Add(new CollectionIncludeSpec { Resource = "parents" });
+        if (includeAgents) childIncludes.Add(new CollectionIncludeSpec { Resource = "agents" });
+        if (includeMetricsObserver) childIncludes.Add(new CollectionIncludeSpec { Resource = "observers", Where = "name='Metrics'" });
 
-        return CollectionRequest(collectionName, new IncludeSpec
+        return CollectionRequest(collectionName, new CollectionIncludeSpec
         {
             Resource = "components",
             ReturnCountOnly = returnCountOnly,
@@ -45,25 +45,25 @@ public static class MonitorQueryBuilders
         });
     }
 
-    public static MonitoringQueryRequest CollectionComponentsWithAllMetrics(
+    public static CollectionQueryRequest CollectionComponentsWithAllMetrics(
         string collectionName,
         string componentType,
         bool returnCountOnly,
         int resultRecordCount = 100,
         int resultOffset = 0)
     {
-        return CollectionRequest(collectionName, new IncludeSpec
+        return CollectionRequest(collectionName, new CollectionIncludeSpec
         {
             Resource = "components",
             ReturnCountOnly = returnCountOnly,
             ResultRecordCount = resultRecordCount,
             ResultOffset = resultOffset,
             Where = $"type = '{EscapeSqlLiteral(componentType)}'",
-            Including = [new IncludeSpec { Resource = "metrics" }]
+            Including = [new CollectionIncludeSpec { Resource = "metrics" }]
         });
     }
 
-    public static MonitoringQueryRequest CollectionComponentsByMetricName(
+    public static CollectionQueryRequest CollectionComponentsByMetricName(
         string collectionName,
         string componentType,
         string metricNameLike,
@@ -73,7 +73,7 @@ public static class MonitorQueryBuilders
         int resultRecordCount = 100,
         int resultOffset = 0)
     {
-        return CollectionRequest(collectionName, new IncludeSpec
+        return CollectionRequest(collectionName, new CollectionIncludeSpec
         {
             Resource = "components",
             ReturnCountOnly = returnCountOnly,
@@ -82,13 +82,13 @@ public static class MonitorQueryBuilders
             Where = $"type = '{EscapeSqlLiteral(componentType)}'",
             Including =
             [
-                new IncludeSpec
+                new CollectionIncludeSpec
                 {
                     Resource = "metrics",
                     Where = $"name like '{EscapeSqlLiteral(metricNameLike)}%'",
                     Including =
                     [
-                        new IncludeSpec
+                        new CollectionIncludeSpec
                         {
                             Resource = "metrics_data",
                             Where = BetweenTimestamp("observed_at", fromUtc, toUtc),
@@ -98,24 +98,24 @@ public static class MonitorQueryBuilders
                                 new OutStatistic
                                 {
                                     OnStatisticField = "value",
-                                    StatisticType = ["count", "avg", "min", "max", "sum", "stddev"]
+                                    StatisticType = ["count", "min", "max", "avg", "stddev", "percentile_95", "sum"]
                                 }
                             ]
                         },
-                        new IncludeSpec
+                        new CollectionIncludeSpec
                         {
                             Resource = "alerts",
                             Where = AlertOverlapsWhere(fromUtc, toUtc)
                         }
                     ]
                 },
-                new IncludeSpec { Resource = "labels" },
-                new IncludeSpec { Resource = "observers", Where = "name='Metrics'" }
+                new CollectionIncludeSpec { Resource = "labels" },
+                new CollectionIncludeSpec { Resource = "observers", Where = "name='Metrics'" }
             ]
         });
     }
 
-    public static MonitoringQueryRequest MetricsTimeSeries(
+    public static MetricQueryRequest MetricsTimeSeries(
         IEnumerable<int> metricIds,
         DateTimeOffset fromUtc,
         DateTimeOffset toUtc,
@@ -123,14 +123,14 @@ public static class MonitorQueryBuilders
     {
         var ids = string.Join(", ", metricIds.Distinct().OrderBy(x => x));
         if (string.IsNullOrWhiteSpace(ids))
-            throw new ArgumentException("Debe indicar al menos un metricId.", nameof(metricIds));
+            throw new ArgumentException("Must specify at least one metricId.", nameof(metricIds));
 
-        return new MonitoringQueryRequest
+        return new MetricQueryRequest
         {
             Where = $"id in ({ids})",
             Including =
             [
-                new IncludeSpec
+                new MetricIncludeSpec
                 {
                     Resource = "metrics_data",
                     Where = BetweenTimestamp("observed_at", fromUtc, toUtc),
@@ -140,7 +140,7 @@ public static class MonitorQueryBuilders
                         new OutStatistic
                         {
                             OnStatisticField = "value",
-                            StatisticType = ["avg", "max", "sum"]
+                            StatisticType = ["count", "min", "max", "avg", "stddev", "percentile_95", "sum"]
                         }
                     ]
                 }
@@ -148,9 +148,9 @@ public static class MonitorQueryBuilders
         };
     }
 
-    private static MonitoringQueryRequest CollectionRequest(string collectionName, IncludeSpec include)
+    private static CollectionQueryRequest CollectionRequest(string collectionName, CollectionIncludeSpec include)
     {
-        return new MonitoringQueryRequest
+        return new CollectionQueryRequest
         {
             Where = $"(name = '{EscapeSqlLiteral(collectionName)}')",
             Including = [include]

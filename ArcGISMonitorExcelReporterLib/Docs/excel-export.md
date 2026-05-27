@@ -1,36 +1,50 @@
-# Exportación a Excel
+# Excel Export
 
-El proyecto incluye una capa de reporte para guardar las salidas de ArcGIS Monitor en un archivo `.xlsx` usando ClosedXML.
+The project includes a reporting layer to save ArcGIS Monitor outputs to an `.xlsx` file using ClosedXML.
 
-## Clases agregadas
+## Added Classes
 
-- `Reporting/MonitorReportRequest.cs` *(incluido en `MonitorExcelReportModels.cs`)*: parámetros de entrada del reporte.
-- `Reporting/MonitorExcelReport`: contenedor normalizado de salidas.
-- `Reporting/MonitorReportService`: ejecuta las llamadas HTTP ya estructuradas y arma el modelo tabular.
-- `Reporting/MonitorExcelReportWriter`: escribe el archivo Excel físico.
+- `Reporting/MonitorReportRequest.cs` *(included in `MonitorExcelReportModels.cs`)*: report input parameters.
+- `Reporting/MonitorExcelReport`: normalized output container.
+- `Reporting/MonitorReportService`: executes structured HTTP calls and builds the tabular model.
+- `Reporting/MonitorExcelReportWriter`: writes the physical Excel file.
 
-## Estructura del Excel
+## Excel Structure
 
-El archivo generado contiene:
+The generated file contains:
 
-- `Resumen`: hoja inicial con metadatos, conteos e índice con vínculos internos.
-- `Colecciones`: resumen tabular de colecciones consultadas.
-- `Componentes`: inventario consolidado de componentes.
-- `Metricas`: catálogo consolidado de métricas.
-- `Datos_Metricas`: datos agregados o series temporales de métricas.
-- `Alertas`: alertas asociadas a métricas.
-- `COL_*`: hojas específicas por colección y tipo de componente.
-- `MET_*`: hojas específicas por nombre de métrica.
+- `Summary`: initial sheet with metadata, counts, and index with internal links.
+- `Collections`: tabular summary of queried collections.
+- `Components`: consolidated component inventory.
+- `Metrics`: consolidated metrics catalog.
+- `Metric_Data`: aggregated data or time series of metrics (includes min, max, avg, stddev, percentile 95, sum, count).
+- `Alerts`: alerts associated with metrics.
+- `COL_*`: collection and component type-specific sheets.
+- `MET_*`: metric name-specific sheets.
 
-Los nombres de hoja se sanitizan para cumplir las restricciones de Excel: máximo 31 caracteres y exclusión de caracteres no válidos como `[]:*?/\`.
+Sheet names are sanitized to comply with Excel restrictions: maximum 31 characters and exclusion of invalid characters such as `[]:*?/\`.
 
-## Ejemplo
+## Output Location
+
+When using the console application, Excel reports are automatically saved to the `reports/` folder relative to the configuration file directory. The naming pattern is `{config-name}_{yyyyMMdd_HHmm}.xlsx`.
+
+Example:
+```
+D:\ExcelReport\dist\
+├── agm2023x.json              (configuration file)
+└── reports\
+    └── agm2023x_20250108_1015.xlsx
+```
+
+When using the library directly, you can specify any output path.
+
+## Example
 
 ```csharp
 using ArcGISMonitorExcelReporterLib.Client;
 using ArcGISMonitorExcelReporterLib.Reporting;
 
-using var client = new ArcGisMonitorClient(new Uri("https://servidor-monitor:30443/"));
+using var client = new ArcGisMonitorClient(new Uri("https://monitor-server:30443/"));
 await client.AuthenticateAsync(username, password);
 
 var queries = new ArcGisMonitorQueryService(client);
