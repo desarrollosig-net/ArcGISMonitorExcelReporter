@@ -9,7 +9,7 @@ using Serilog;
 try
 {
     var cancellationToken = CancellationToken.None;
-    var configFilePath = "D:\\ExcelReport\\dist\\agm2023x.json";
+    var configFilePath = "C:\\Users\\Mtorres\\source\\repos\\ArcGISMonitorExcelReporter\\data\\agm2023x.json";
 
     // Get the directory containing the configuration file
     var configDirectory = Path.GetDirectoryName(Path.GetFullPath(configFilePath)) ?? Directory.GetCurrentDirectory();

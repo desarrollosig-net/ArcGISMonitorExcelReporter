@@ -154,7 +154,7 @@ public sealed class MonitorReportService
         CancellationToken cancellationToken = default)
     {
         var report = await BuildReportAsync(request, cancellationToken).ConfigureAwait(false);
-        new MonitorExcelReportWriter().Save(report, outputPath);
+        MonitorExcelReportWriter.Save(report, outputPath);
     }
 
 
