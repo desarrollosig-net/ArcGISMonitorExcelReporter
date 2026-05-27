@@ -84,7 +84,7 @@ public sealed class ArcGISMonitorExcelReporter(HttpClient? httpClient = null)
         var report = await BuildReportAsync(configuration, cancellationToken).ConfigureAwait(false);
 
         Log.Information("Writing Excel file...");
-        new MonitorExcelReportWriter().Save(report, outputExcelPath);
+        MonitorExcelReportWriter.Save(report, outputExcelPath);
         Log.Information("Excel file written successfully: {OutputPath}", outputExcelPath);
 
         return outputExcelPath;

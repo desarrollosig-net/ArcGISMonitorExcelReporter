@@ -20,7 +20,7 @@ public static class MonitorQueryBuilders
     {
         var childIncludes = new List<CollectionIncludeSpec>();
 
-        if (includeLogs && fromUtc.HasValue && toUtc.HasValue)
+        if(includeLogs && fromUtc.HasValue && toUtc.HasValue)                               
         {
             childIncludes.Add(new CollectionIncludeSpec
             {
@@ -29,10 +29,10 @@ public static class MonitorQueryBuilders
             });
         }
 
-        if (includeLabels) childIncludes.Add(new CollectionIncludeSpec { Resource = "labels" });
-        if (includeParents) childIncludes.Add(new CollectionIncludeSpec { Resource = "parents" });
-        if (includeAgents) childIncludes.Add(new CollectionIncludeSpec { Resource = "agents" });
-        if (includeMetricsObserver) childIncludes.Add(new CollectionIncludeSpec { Resource = "observers", Where = "name='Metrics'" });
+        if(includeLabels) childIncludes.Add(new CollectionIncludeSpec { Resource = "labels" });
+        if(includeParents) childIncludes.Add(new CollectionIncludeSpec { Resource = "parents" });
+        if(includeAgents) childIncludes.Add(new CollectionIncludeSpec { Resource = "agents" });
+        if(includeMetricsObserver) childIncludes.Add(new CollectionIncludeSpec { Resource = "observers", Where = "name='Metrics'" });
 
         return CollectionRequest(collectionName, new CollectionIncludeSpec
         {
@@ -71,9 +71,7 @@ public static class MonitorQueryBuilders
         DateTimeOffset toUtc,
         bool returnCountOnly,
         int resultRecordCount = 100,
-        int resultOffset = 0)
-    {
-        return CollectionRequest(collectionName, new CollectionIncludeSpec
+        int resultOffset = 0) => CollectionRequest(collectionName, new CollectionIncludeSpec
         {
             Resource = "components",
             ReturnCountOnly = returnCountOnly,
@@ -113,7 +111,6 @@ public static class MonitorQueryBuilders
                 new CollectionIncludeSpec { Resource = "observers", Where = "name='Metrics'" }
             ]
         });
-    }
 
     public static MetricQueryRequest MetricsTimeSeries(
         IEnumerable<int> metricIds,
@@ -122,7 +119,7 @@ public static class MonitorQueryBuilders
         string bucket = "observed_at:15m")
     {
         var ids = string.Join(", ", metricIds.Distinct().OrderBy(x => x));
-        if (string.IsNullOrWhiteSpace(ids))
+        if(string.IsNullOrWhiteSpace(ids))
             throw new ArgumentException("Must specify at least one metricId.", nameof(metricIds));
 
         return new MetricQueryRequest

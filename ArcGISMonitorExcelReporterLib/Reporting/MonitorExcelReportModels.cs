@@ -503,6 +503,15 @@ public static class MonitorReportMapper
                 foreach (var data in metric.MetricsData ?? [])
                 {
                     var d = data.Attributes;
+
+                    // Calculate Percentile 95: avg + 1.645 * stddev (if count >= 30, otherwise null)
+                    double? percentile95 = null;
+                    if (d.CountValue.HasValue && d.CountValue.Value >= 30 && 
+                        d.AvgValue.HasValue && d.StdDevValue.HasValue)
+                    {
+                        percentile95 = d.AvgValue.Value + (1.645 * d.StdDevValue.Value);
+                    }
+
                     report.MetricData.Add(new MetricDataReportRow
                     {
                         CollectionName = collectionName,
@@ -515,7 +524,7 @@ public static class MonitorReportMapper
                         MaxValue = d.MaxValue,
                         AvgValue = d.AvgValue,
                         StdDevValue = d.StdDevValue,
-                        Percentile95Value = d.Percentile95Value,
+                        Percentile95Value = percentile95,
                         SumValue = d.SumValue,
                         CountValue = d.CountValue
                     });
