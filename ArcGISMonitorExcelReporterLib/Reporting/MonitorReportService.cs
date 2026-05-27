@@ -1,5 +1,6 @@
 using ArcGISMonitorExcelReporterLib.Client;
 using ArcGISMonitorExcelReporterLib.Models;
+using Serilog;
 
 namespace ArcGISMonitorExcelReporterLib.Reporting;
 
@@ -18,11 +19,14 @@ public sealed class MonitorReportService
     {
         ArgumentNullException.ThrowIfNull(request);
         if (request.CollectionNames.Count == 0)
-            throw new ArgumentException("Debe especificar al menos una colección.", nameof(request));
+            throw new ArgumentException("Must specify at least one collection.", nameof(request));
         if (request.ComponentTypes.Count == 0)
-            throw new ArgumentException("Debe especificar al menos un tipo de componente.", nameof(request));
+            throw new ArgumentException("Must specify at least one component type.", nameof(request));
         if (request.FromUtc >= request.ToUtc)
-            throw new ArgumentException("FromUtc debe ser menor que ToUtc.", nameof(request));
+            throw new ArgumentException("FromUtc must be less than ToUtc.", nameof(request));
+
+        Log.Information("Building report for {CollectionCount} collections and {TypeCount} component types", 
+            request.CollectionNames.Count, request.ComponentTypes.Count);
 
         var report = new MonitorExcelReport
         {
@@ -34,10 +38,13 @@ public sealed class MonitorReportService
         {
             foreach (var componentType in request.ComponentTypes.Distinct(StringComparer.OrdinalIgnoreCase))
             {
+                Log.Information("Querying collection: {Collection}, component type: {Type}", collectionName, componentType);
+
                 var components = new List<ComponentFeature>();
 
                 if (request.MetricNameLikes.Count == 0)
                 {
+                    Log.Debug("Fetching all metrics for {Collection}/{Type}", collectionName, componentType);
                     components.AddRange(await _queries.GetComponentsWithAllMetricsAsync(
                         collectionName,
                         componentType,
@@ -46,6 +53,7 @@ public sealed class MonitorReportService
                 }
                 else
                 {
+                    Log.Debug("Fetching specific metrics: {Metrics}", string.Join(", ", request.MetricNameLikes));
                     foreach (var metricNameLike in request.MetricNameLikes.Distinct(StringComparer.OrdinalIgnoreCase))
                     {
                         components.AddRange(await _queries.GetComponentsWithMetricStatsAsync(
@@ -64,6 +72,9 @@ public sealed class MonitorReportService
                         .ToList();
                 }
 
+                Log.Information("Retrieved {Count} components for {Collection}/{Type}", 
+                    components.Count, collectionName, componentType);
+
                 MonitorReportMapper.AddComponentTree(report, collectionName, components);
 
                 report.Collections.Add(new CollectionReportRow(
@@ -75,10 +86,13 @@ public sealed class MonitorReportService
             }
         }
 
+        Log.Information("Applying metric filters...");
         ApplyMetricFilters(report, request);
 
         if (request.IncludeMetricTimeSeries && report.Metrics.Count > 0)
         {
+            Log.Information("Fetching metric time series data...");
+
             var metricIds = report.Metrics
                 .Select(m => m.MetricId)
                 .Where(id => id > 0)
@@ -88,6 +102,8 @@ public sealed class MonitorReportService
 
             if (metricIds.Count > 0)
             {
+                Log.Debug("Requesting time series for {Count} metrics", metricIds.Count);
+
                 var series = await _queries.GetMetricTimeSeriesAsync(
                     metricIds,
                     request.FromUtc,
@@ -95,6 +111,7 @@ public sealed class MonitorReportService
                     request.MetricBucket,
                     cancellationToken).ConfigureAwait(false);
 
+                var dataPointCount = 0;
                 foreach (var metric in series.Features)
                 {
                     var metricAttributes = metric.Attributes;
@@ -109,17 +126,24 @@ public sealed class MonitorReportService
                             ComponentId = metricAttributes.ComponentId,
                             ComponentName = metricAttributes.ComponentName,
                             ObservedAt = d.ObservedAt,
-                            CountValue = d.CountValue,
-                            AvgValue = d.AvgValue,
                             MinValue = d.MinValue,
                             MaxValue = d.MaxValue,
+                            AvgValue = d.AvgValue,
+                            StdDevValue = d.StdDevValue,
+                            Percentile95Value = d.Percentile95Value,
                             SumValue = d.SumValue,
-                            StdDevValue = d.StdDevValue
+                            CountValue = d.CountValue
                         });
+                        dataPointCount++;
                     }
                 }
+
+                Log.Information("Retrieved {DataPoints} time series data points", dataPointCount);
             }
         }
+
+        Log.Information("Report build completed: {Collections} collections, {Components} components, {Metrics} metrics, {Alerts} alerts, {DataPoints} data points",
+            report.Collections.Count, report.Components.Count, report.Metrics.Count, report.Alerts.Count, report.MetricData.Count);
 
         return report;
     }

@@ -1,6 +1,7 @@
 using ArcGISMonitorExcelReporterLib.Client;
 using ReporterConfiguration = ArcGISMonitorExcelReporterLib.Configuration.Configuration;
 using ArcGISMonitorExcelReporterLib.Reporting;
+using Serilog;
 
 namespace ArcGISMonitorExcelReporterLib;
 
@@ -13,17 +14,34 @@ public sealed class ArcGISMonitorExcelReporter(HttpClient? httpClient = null)
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-        configuration.Validate();
 
+        Log.Information("Validating configuration...");
+        configuration.Validate();
+        Log.Information("Configuration validated successfully");
+
+        Log.Information("Creating ArcGIS Monitor client for URL: {Url}", configuration.Server.Url);
         using var client = CreateClient(configuration);
+
+        Log.Information("Authenticating with ArcGIS Monitor as user: {Username}", configuration.Server.Username);
         await client.AuthenticateAsync(
             configuration.Server.Username,
             configuration.Server.GetPassword(),
             cancellationToken).ConfigureAwait(false);
+        Log.Information("Authentication successful");
 
         var queryService = new ArcGisMonitorQueryService(client);
         var reportService = new MonitorReportService(queryService);
-        return await reportService.BuildReportAsync(configuration.ToReportRequest(), cancellationToken).ConfigureAwait(false);
+
+        Log.Information("Building report from {FromUtc:yyyy-MM-dd HH:mm:ss} to {ToUtc:yyyy-MM-dd HH:mm:ss} UTC", 
+            configuration.ToReportRequest().FromUtc, 
+            configuration.ToReportRequest().ToUtc);
+
+        var report = await reportService.BuildReportAsync(configuration.ToReportRequest(), cancellationToken).ConfigureAwait(false);
+
+        Log.Information("Report built successfully: {Collections} collections, {Components} components, {Metrics} metrics", 
+            report.Collections.Count, report.Components.Count, report.Metrics.Count);
+
+        return report;
     }
 
     public async Task<string> GenerateExcelAsync(
@@ -33,11 +51,16 @@ public sealed class ArcGISMonitorExcelReporter(HttpClient? httpClient = null)
     {
         if(string.IsNullOrWhiteSpace(outputExcelPath))
         {
-            throw new ArgumentException("Debe indicar la ruta del archivo Excel de salida.", nameof(outputExcelPath));
+            throw new ArgumentException("Output Excel file path must be specified.", nameof(outputExcelPath));
         }
 
+        Log.Information("Starting report generation for output: {OutputPath}", outputExcelPath);
         var report = await BuildReportAsync(configuration, cancellationToken).ConfigureAwait(false);
+
+        Log.Information("Writing Excel file...");
         new MonitorExcelReportWriter().Save(report, outputExcelPath);
+        Log.Information("Excel file written successfully: {OutputPath}", outputExcelPath);
+
         return outputExcelPath;
     }
 

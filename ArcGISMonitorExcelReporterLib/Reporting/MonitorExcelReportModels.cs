@@ -82,12 +82,13 @@ public sealed class MetricDataReportRow
     public int? ComponentId { get; set; }
     public string? ComponentName { get; set; }
     public DateTimeOffset? ObservedAt { get; set; }
-    public double? CountValue { get; set; }
-    public double? AvgValue { get; set; }
     public double? MinValue { get; set; }
     public double? MaxValue { get; set; }
-    public double? SumValue { get; set; }
+    public double? AvgValue { get; set; }
     public double? StdDevValue { get; set; }
+    public double? Percentile95Value { get; set; }
+    public double? SumValue { get; set; }
+    public double? CountValue { get; set; }
 }
 
 public sealed class AlertReportRow
@@ -172,12 +173,13 @@ public static class MonitorReportMapper
                         ComponentId = c.Id,
                         ComponentName = c.Name,
                         ObservedAt = d.ObservedAt,
-                        CountValue = d.CountValue,
-                        AvgValue = d.AvgValue,
                         MinValue = d.MinValue,
                         MaxValue = d.MaxValue,
+                        AvgValue = d.AvgValue,
+                        StdDevValue = d.StdDevValue,
+                        Percentile95Value = d.Percentile95Value,
                         SumValue = d.SumValue,
-                        StdDevValue = d.StdDevValue
+                        CountValue = d.CountValue
                     });
                 }
 

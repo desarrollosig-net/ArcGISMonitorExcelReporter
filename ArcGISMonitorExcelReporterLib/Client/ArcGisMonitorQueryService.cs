@@ -1,5 +1,6 @@
 using ArcGISMonitorExcelReporterLib.Builders;
 using ArcGISMonitorExcelReporterLib.Models;
+using Serilog;
 
 namespace ArcGISMonitorExcelReporterLib.Client;
 
@@ -68,20 +69,33 @@ public sealed class ArcGisMonitorQueryService
         int pageSize = 100,
         CancellationToken cancellationToken = default)
     {
+        Log.Debug("Getting component count for {Collection}/{Type}...", collectionName, componentType);
+
         var countRequest = MonitorQueryBuilders.CollectionComponentsWithAllMetrics(collectionName, componentType, true, pageSize, 0);
         var countResponse = await _client.QueryCollectionsAsync(countRequest, cancellationToken).ConfigureAwait(false);
         var total = countResponse.Features.FirstOrDefault()?.Components.Count ?? 0;
+
+        Log.Debug("Total components to retrieve: {Total}", total);
+
         var components = new List<ComponentFeature>(Math.Max(total, 0));
 
         for (var offset = 0; offset < Math.Max(total, 1); offset += pageSize)
         {
+            Log.Debug("Fetching components page: offset {Offset}, size {PageSize}", offset, pageSize);
+
             var request = MonitorQueryBuilders.CollectionComponentsWithAllMetrics(collectionName, componentType, false, pageSize, offset);
             var response = await _client.QueryCollectionsAsync(request, cancellationToken).ConfigureAwait(false);
+            var pageCount = response.Features.SelectMany(f => f.Components.Items).Count();
+
             components.AddRange(response.Features.SelectMany(f => f.Components.Items));
+
+            Log.Debug("Retrieved {Count} components in this page", pageCount);
 
             if (total == 0)
                 break;
         }
+
+        Log.Debug("Completed fetching {Total} components with metrics", components.Count);
 
         return components;
     }
@@ -95,24 +109,38 @@ public sealed class ArcGisMonitorQueryService
         int pageSize = 100,
         CancellationToken cancellationToken = default)
     {
+        Log.Debug("Getting component count for {Collection}/{Type} with metric filter: {Metric}...", 
+            collectionName, componentType, metricNameLike);
+
         var countRequest = MonitorQueryBuilders.CollectionComponentsByMetricName(
             collectionName, componentType, metricNameLike, fromUtc, toUtc, true, pageSize, 0);
 
         var countResponse = await _client.QueryCollectionsAsync(countRequest, cancellationToken).ConfigureAwait(false);
         var total = countResponse.Features.FirstOrDefault()?.Components.Count ?? 0;
+
+        Log.Debug("Total components to retrieve: {Total}", total);
+
         var components = new List<ComponentFeature>(Math.Max(total, 0));
 
         for (var offset = 0; offset < Math.Max(total, 1); offset += pageSize)
         {
+            Log.Debug("Fetching components page: offset {Offset}, size {PageSize}", offset, pageSize);
+
             var request = MonitorQueryBuilders.CollectionComponentsByMetricName(
                 collectionName, componentType, metricNameLike, fromUtc, toUtc, false, pageSize, offset);
 
             var response = await _client.QueryCollectionsAsync(request, cancellationToken).ConfigureAwait(false);
+            var pageCount = response.Features.SelectMany(f => f.Components.Items).Count();
+
             components.AddRange(response.Features.SelectMany(f => f.Components.Items));
+
+            Log.Debug("Retrieved {Count} components in this page", pageCount);
 
             if (total == 0)
                 break;
         }
+
+        Log.Debug("Completed fetching {Total} components with metric stats", components.Count);
 
         return components;
     }
@@ -124,7 +152,14 @@ public sealed class ArcGisMonitorQueryService
         string bucket = "observed_at:15m",
         CancellationToken cancellationToken = default)
     {
-        var request = MonitorQueryBuilders.MetricsTimeSeries(metricIds, fromUtc, toUtc, bucket);
-        return await _client.QueryMetricsAsync(request, cancellationToken).ConfigureAwait(false);
+        var idList = metricIds.ToList();
+        Log.Debug("Fetching time series for {Count} metrics with bucket: {Bucket}", idList.Count, bucket);
+
+        var request = MonitorQueryBuilders.MetricsTimeSeries(idList, fromUtc, toUtc, bucket);
+        var response = await _client.QueryMetricsAsync(request, cancellationToken).ConfigureAwait(false);
+
+        Log.Debug("Retrieved time series data for {Count} metrics", response.Features.Count);
+
+        return response;
     }
 }

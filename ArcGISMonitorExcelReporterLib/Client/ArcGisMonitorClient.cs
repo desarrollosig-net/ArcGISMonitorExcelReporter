@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using ArcGISMonitorExcelReporterLib.Models;
+using Serilog;
 
 namespace ArcGISMonitorExcelReporterLib.Client;
 
@@ -23,6 +24,8 @@ public sealed class ArcGisMonitorClient : IDisposable
 
     public async Task<TokenResponse> AuthenticateAsync(string username, string password, CancellationToken cancellationToken = default)
     {
+        Log.Debug("Requesting authentication token for user: {Username}", username);
+
         var token = await PostAsync<TokenRequest, TokenResponse>(
             "arcgis/auth/token",
             new TokenRequest
@@ -37,10 +40,16 @@ public sealed class ArcGisMonitorClient : IDisposable
             cancellationToken).ConfigureAwait(false);
 
         if (!token.Success || string.IsNullOrWhiteSpace(token.AccessToken))
-            throw new InvalidOperationException("ArcGIS Monitor no retornó un access_token válido.");
+        {
+            Log.Error("Authentication failed: ArcGIS Monitor did not return a valid access_token");
+            throw new InvalidOperationException("ArcGIS Monitor did not return a valid access_token.");
+        }
 
         _accessToken = token.AccessToken;
         _tokenExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(Math.Max(0, token.ExpiresIn - 60));
+
+        Log.Debug("Authentication token acquired, expires at: {ExpiresAt:yyyy-MM-dd HH:mm:ss} UTC", _tokenExpiresAtUtc);
+
         return token;
     }
 
@@ -51,10 +60,10 @@ public sealed class ArcGisMonitorClient : IDisposable
     }
 
     public async Task<QueryResponse<CollectionFeature>> QueryCollectionsAsync(
-        MonitoringQueryRequest request,
+        CollectionQueryRequest request,
         CancellationToken cancellationToken = default)
     {
-        return await PostAsync<MonitoringQueryRequest, QueryResponse<CollectionFeature>>(
+        return await PostAsync<CollectionQueryRequest, QueryResponse<CollectionFeature>>(
             "arcgis/monitoring/collections/query",
             request,
             requiresBearer: true,
@@ -62,10 +71,10 @@ public sealed class ArcGisMonitorClient : IDisposable
     }
 
     public async Task<QueryResponse<MetricFeature>> QueryMetricsAsync(
-        MonitoringQueryRequest request,
+        MetricQueryRequest request,
         CancellationToken cancellationToken = default)
     {
-        return await PostAsync<MonitoringQueryRequest, QueryResponse<MetricFeature>>(
+        return await PostAsync<MetricQueryRequest, QueryResponse<MetricFeature>>(
             "arcgis/monitoring/metrics/query",
             request,
             requiresBearer: true,
@@ -81,10 +90,10 @@ public sealed class ArcGisMonitorClient : IDisposable
         if (requiresBearer)
         {
             if(string.IsNullOrWhiteSpace(_accessToken))
-                throw new InvalidOperationException("No hay token configurado. Ejecute AuthenticateAsync o SetBearerToken antes de consultar ArcGIS Monitor.");
+                throw new InvalidOperationException("No token configured. Execute AuthenticateAsync or SetBearerToken before querying ArcGIS Monitor.");
 
             if (_tokenExpiresAtUtc <= DateTimeOffset.UtcNow)
-                throw new InvalidOperationException("El token está vencido o próximo a vencer. Renueve autenticación antes de ejecutar la consulta.");
+                throw new InvalidOperationException("Token is expired or about to expire. Renew authentication before executing the query.");
         }
 
         using var message = new HttpRequestMessage(HttpMethod.Post, relativeUrl)
@@ -102,7 +111,7 @@ public sealed class ArcGisMonitorClient : IDisposable
             throw new HttpRequestException($"Error HTTP {(int)response.StatusCode} {response.ReasonPhrase}. Body: {body}");
 
         var result = JsonSerializer.Deserialize<TResponse>(body, _jsonOptions);
-        return result ?? throw new JsonException($"Respuesta JSON vacía o inválida para {relativeUrl}.");
+        return result ?? throw new JsonException($"Empty or invalid JSON response for {relativeUrl}.");
     }
 
     public void Dispose()

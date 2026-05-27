@@ -18,36 +18,36 @@ public sealed class Configuration
     {
         await using var stream = File.OpenRead(path);
         var configuration = await JsonSerializer.DeserializeAsync<Configuration>(stream, MonitorJson.Options, cancellationToken).ConfigureAwait(false);
-        return configuration ?? throw new JsonException($"No fue posible deserializar la configuración desde '{path}'.");
+        return configuration ?? throw new JsonException($"Unable to deserialize configuration from '{path}'.");
     }
 
     public static Configuration Load(string path)
     {
         using var stream = File.OpenRead(path);
         var configuration = JsonSerializer.Deserialize<Configuration>(stream, MonitorJson.Options);
-        return configuration ?? throw new JsonException($"No fue posible deserializar la configuración desde '{path}'.");
+        return configuration ?? throw new JsonException($"Unable to deserialize configuration from '{path}'.");
     }
 
     public void Validate()
     {
         if (Server is null)
-            throw new InvalidOperationException("La configuración debe incluir el bloque 'server'.");
+            throw new InvalidOperationException("Configuration must include the 'server' block.");
         if (Report is null)
-            throw new InvalidOperationException("La configuración debe incluir el bloque 'report'.");
+            throw new InvalidOperationException("Configuration must include the 'report' block.");
         if (string.IsNullOrWhiteSpace(Server.Url))
-            throw new InvalidOperationException("server.url es obligatorio.");
+            throw new InvalidOperationException("server.url is required.");
         if (!Uri.TryCreate(Server.Url, UriKind.Absolute, out _))
-            throw new InvalidOperationException("server.url debe ser una URL absoluta válida.");
+            throw new InvalidOperationException("server.url must be a valid absolute URL.");
         if (string.IsNullOrWhiteSpace(Server.Username))
-            throw new InvalidOperationException("server.username es obligatorio.");
+            throw new InvalidOperationException("server.username is required.");
         if (string.IsNullOrWhiteSpace(Server.Password))
-            throw new InvalidOperationException("server.password es obligatorio.");
+            throw new InvalidOperationException("server.password is required.");
         if (string.IsNullOrWhiteSpace(Report.Collection))
-            throw new InvalidOperationException("report.collection es obligatorio.");
+            throw new InvalidOperationException("report.collection is required.");
         if (Report.Types.Count == 0)
-            throw new InvalidOperationException("report.types debe contener al menos un tipo de componente.");
+            throw new InvalidOperationException("report.types must contain at least one component type.");
         if (Report.PastDays < 0 || Report.PastHours < 0)
-            throw new InvalidOperationException("report.past_days y report.past_hours no pueden ser negativos.");
+            throw new InvalidOperationException("report.past_days and report.past_hours cannot be negative.");
     }
 
     public MonitorReportRequest ToReportRequest()
@@ -110,7 +110,7 @@ public sealed class ServerConfiguration
         }
         catch (FormatException ex)
         {
-            throw new InvalidOperationException("server.password_encoding está activo, pero server.password no es Base64 válido.", ex);
+            throw new InvalidOperationException("server.password_encoding is enabled, but server.password is not valid Base64.", ex);
         }
     }
 }
@@ -180,7 +180,7 @@ public sealed class EndTimeConfiguration
             return TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, timezone);
 
         if (Year <= 0 || Month <= 0 || Day <= 0)
-            throw new InvalidOperationException("report.end_time debe tener now=true o year/month/day válidos.");
+            throw new InvalidOperationException("report.end_time must have now=true or valid year/month/day.");
 
         var local = new DateTime(Year, Month, Day, Hour, Minute, Second, DateTimeKind.Unspecified);
         var offset = timezone.GetUtcOffset(local);
