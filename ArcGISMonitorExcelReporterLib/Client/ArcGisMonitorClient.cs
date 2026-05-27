@@ -6,6 +6,10 @@ using Serilog;
 
 namespace ArcGISMonitorExcelReporterLib.Client;
 
+/// <summary>
+/// HTTP client for communicating with the ArcGIS Monitor REST API.
+/// Handles authentication, token management, and API requests.
+/// </summary>
 public sealed class ArcGisMonitorClient : IDisposable
 {
     private readonly HttpClient _httpClient;
@@ -14,6 +18,12 @@ public sealed class ArcGisMonitorClient : IDisposable
     private string? _accessToken;
     private DateTimeOffset _tokenExpiresAtUtc;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ArcGisMonitorClient"/> class.
+    /// </summary>
+    /// <param name="baseUri">The base URI for the ArcGIS Monitor server (e.g., https://monitor.example.com:30443/).</param>
+    /// <param name="httpClient">Optional HTTP client instance. If null, a new client will be created and disposed by this instance.</param>
+    /// <param name="jsonOptions">Optional JSON serialization options. If null, default Monitor JSON options will be used.</param>
     public ArcGisMonitorClient(Uri baseUri, HttpClient? httpClient = null, JsonSerializerOptions? jsonOptions = null)
     {
         _disposeClient = httpClient is null;
@@ -22,6 +32,14 @@ public sealed class ArcGisMonitorClient : IDisposable
         _jsonOptions = jsonOptions ?? MonitorJson.Options;
     }
 
+    /// <summary>
+    /// Authenticates with ArcGIS Monitor and obtains a bearer token.
+    /// </summary>
+    /// <param name="username">The username for authentication.</param>
+    /// <param name="password">The password for authentication.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The token response containing the access token and expiration information.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if authentication fails or the server doesn't return a valid token.</exception>
     public async Task<TokenResponse> AuthenticateAsync(string username, string password, CancellationToken cancellationToken = default)
     {
         Log.Debug("Requesting authentication token for user: {Username}", username);
@@ -53,12 +71,26 @@ public sealed class ArcGisMonitorClient : IDisposable
         return token;
     }
 
+    /// <summary>
+    /// Manually sets a bearer token for authentication without calling the authentication endpoint.
+    /// Useful when you have a pre-existing valid token.
+    /// </summary>
+    /// <param name="accessToken">The bearer access token.</param>
+    /// <param name="expiresAtUtc">Optional expiration time (UTC). If null, defaults to 1 hour from now.</param>
     public void SetBearerToken(string accessToken, DateTimeOffset? expiresAtUtc = null)
     {
         _accessToken = accessToken;
         _tokenExpiresAtUtc = expiresAtUtc ?? DateTimeOffset.UtcNow.AddHours(1);
     }
 
+    /// <summary>
+    /// Queries collections from ArcGIS Monitor.
+    /// </summary>
+    /// <param name="request">The collection query request parameters.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A query response containing collection features with components, metrics, and related data.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if no token is configured or the token is expired.</exception>
+    /// <exception cref="HttpRequestException">Thrown if the HTTP request fails.</exception>
     public async Task<QueryResponse<CollectionFeature>> QueryCollectionsAsync(
         CollectionQueryRequest request,
         CancellationToken cancellationToken = default)
@@ -70,6 +102,14 @@ public sealed class ArcGisMonitorClient : IDisposable
             cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Queries metrics from ArcGIS Monitor.
+    /// </summary>
+    /// <param name="request">The metric query request parameters.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A query response containing metric features with time series data.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if no token is configured or the token is expired.</exception>
+    /// <exception cref="HttpRequestException">Thrown if the HTTP request fails.</exception>
     public async Task<QueryResponse<MetricFeature>> QueryMetricsAsync(
         MetricQueryRequest request,
         CancellationToken cancellationToken = default)
@@ -81,6 +121,19 @@ public sealed class ArcGisMonitorClient : IDisposable
             cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Sends a POST request to the ArcGIS Monitor API and deserializes the response.
+    /// </summary>
+    /// <typeparam name="TRequest">The type of the request object.</typeparam>
+    /// <typeparam name="TResponse">The type of the expected response object.</typeparam>
+    /// <param name="relativeUrl">The relative API endpoint URL.</param>
+    /// <param name="request">The request object to serialize and send.</param>
+    /// <param name="requiresBearer">Whether a bearer token is required for this request.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The deserialized response object.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if bearer authentication is required but no valid token is available.</exception>
+    /// <exception cref="HttpRequestException">Thrown if the HTTP request fails.</exception>
+    /// <exception cref="JsonException">Thrown if the response cannot be deserialized.</exception>
     private async Task<TResponse> PostAsync<TRequest, TResponse>(
         string relativeUrl,
         TRequest request,
@@ -114,6 +167,9 @@ public sealed class ArcGisMonitorClient : IDisposable
         return result ?? throw new JsonException($"Empty or invalid JSON response for {relativeUrl}.");
     }
 
+    /// <summary>
+    /// Disposes the HTTP client if it was created by this instance.
+    /// </summary>
     public void Dispose()
     {
         if (_disposeClient)

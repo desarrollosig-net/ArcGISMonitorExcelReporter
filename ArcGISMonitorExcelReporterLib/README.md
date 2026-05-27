@@ -180,10 +180,21 @@ Sheet names are sanitized to comply with Excel restrictions: maximum 31 characte
 
 ## Documentation
 
-For detailed information, see:
-- [Configuration Guide](Docs/configuration.md)
-- [Excel Export Details](Docs/excel-export.md)
-- [Metric Statistics](Docs/metric-statistics.md)
-- [Logging Guide](Docs/logging.md)
-- [Extracted Endpoints](Docs/extracted-endpoints.md)
-- [Folder Structure](Docs/folder-structure.md)
+**Complete documentation in English is available:**
+
+### Quick Links
+- 📖 [Complete API Documentation](Docs/api-documentation.md) - Comprehensive API reference for all classes
+- ⚙️ [Configuration Guide](Docs/configuration.md) - Setup and configuration details
+- 📊 [Excel Export Details](Docs/excel-export.md) - Output format and structure
+- 📈 [Metric Statistics](Docs/metric-statistics.md) - Statistical calculations reference
+- 📝 [Logging Guide](Docs/logging.md) - Logging configuration and usage
+- 🗂️ [Folder Structure](Docs/folder-structure.md) - Output organization
+- 🔌 [Extracted Endpoints](Docs/extracted-endpoints.md) - ArcGIS Monitor API integration
+- ✅ [Documentation Status](Docs/documentation-completion-report.md) - Complete documentation report
+
+### Documentation Features
+- **IntelliSense Support**: Rich tooltips for main classes in Visual Studio
+- **100% Coverage**: All public API documented
+- **Code Examples**: Multiple real-world usage scenarios
+- **Error Handling**: Comprehensive exception documentation
+- **Best Practices**: Performance tips and recommendations

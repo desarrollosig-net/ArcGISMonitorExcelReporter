@@ -5,10 +5,24 @@ using Serilog;
 
 namespace ArcGISMonitorExcelReporterLib;
 
+/// <summary>
+/// Main entry point for generating Excel reports from ArcGIS Monitor data.
+/// Coordinates authentication, data querying, and Excel file generation.
+/// </summary>
+/// <param name="httpClient">Optional HTTP client to use for all requests. If null, clients will be created internally.</param>
 public sealed class ArcGISMonitorExcelReporter(HttpClient? httpClient = null)
 {
     private readonly HttpClient? _httpClient = httpClient;
 
+    /// <summary>
+    /// Builds a monitor report by querying ArcGIS Monitor based on the provided configuration.
+    /// </summary>
+    /// <param name="configuration">Configuration containing server connection details and report parameters.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <returns>A <see cref="MonitorExcelReport"/> containing all queried data organized into normalized tables.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if configuration is null.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if configuration validation fails or authentication fails.</exception>
+    /// <exception cref="HttpRequestException">Thrown if communication with ArcGIS Monitor fails.</exception>
     public async Task<MonitorExcelReport> BuildReportAsync(
         ReporterConfiguration configuration,
         CancellationToken cancellationToken = default)
@@ -44,6 +58,18 @@ public sealed class ArcGISMonitorExcelReporter(HttpClient? httpClient = null)
         return report;
     }
 
+    /// <summary>
+    /// Builds a monitor report and writes it to an Excel file.
+    /// </summary>
+    /// <param name="configuration">Configuration containing server connection details and report parameters.</param>
+    /// <param name="outputExcelPath">Full path where the Excel file should be written.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <returns>The path to the generated Excel file.</returns>
+    /// <exception cref="ArgumentException">Thrown if outputExcelPath is null or whitespace.</exception>
+    /// <exception cref="ArgumentNullException">Thrown if configuration is null.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if configuration validation or authentication fails.</exception>
+    /// <exception cref="HttpRequestException">Thrown if communication with ArcGIS Monitor fails.</exception>
+    /// <exception cref="IOException">Thrown if Excel file cannot be written.</exception>
     public async Task<string> GenerateExcelAsync(
         ReporterConfiguration configuration,
         string outputExcelPath,
@@ -64,6 +90,17 @@ public sealed class ArcGISMonitorExcelReporter(HttpClient? httpClient = null)
         return outputExcelPath;
     }
 
+    /// <summary>
+    /// Loads configuration from a JSON file and generates an Excel report.
+    /// </summary>
+    /// <param name="configurationPath">Path to the JSON configuration file.</param>
+    /// <param name="outputExcelPath">Full path where the Excel file should be written.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <returns>The path to the generated Excel file.</returns>
+    /// <exception cref="FileNotFoundException">Thrown if configuration file doesn't exist.</exception>
+    /// <exception cref="JsonException">Thrown if configuration file is invalid JSON.</exception>
+    /// <exception cref="ArgumentException">Thrown if outputExcelPath is null or whitespace.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if configuration validation or authentication fails.</exception>
     public async Task<string> GenerateExcelFromConfigurationFileAsync(
         string configurationPath,
         string outputExcelPath,
@@ -73,6 +110,12 @@ public sealed class ArcGISMonitorExcelReporter(HttpClient? httpClient = null)
         return await GenerateExcelAsync(configuration, outputExcelPath, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Creates an ArcGIS Monitor client with the appropriate configuration.
+    /// Handles URL normalization and SSL certificate validation settings.
+    /// </summary>
+    /// <param name="configuration">The reporter configuration.</param>
+    /// <returns>A configured <see cref="ArcGisMonitorClient"/> instance.</returns>
     private ArcGisMonitorClient CreateClient(ReporterConfiguration configuration)
     {
         var baseUrl = configuration.Server.Url.TrimEnd('/');
