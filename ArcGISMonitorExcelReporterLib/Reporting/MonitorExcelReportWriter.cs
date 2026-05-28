@@ -17,7 +17,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting;
 /// <list type="bullet">
 /// <item><description><b>Inputs:</b> Report parameters (dates, counts)</description></item>
 /// <item><description><b>Summary:</b> Summary by component type with alerts and sheet index</description></item>
-/// <item><description><b>Components:</b> Complete component inventory</description></item>
+/// <item><description><b>Components sheets:</b> One per component type (host, service, database, etc.)</description></item>
 /// <item><description><b>Alerts:</b> All alerts for the period</description></item>
 /// <item><description><b>Metric sheets:</b> One per component type + metric, with aggregated data from ArcGIS Monitor</description></item>
 /// </list>
@@ -30,6 +30,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting;
 /// <item><description>Hyperlinks between sheets for easy navigation</description></item>
 /// <item><description>Excel tables with automatic formatting and frozen headers</description></item>
 /// <item><description>Percentile 95 calculation using formula: avg + 1.645 * stddev (when count ≥ 30)</description></item>
+/// <item><description>Metric sheets show consolidated statistics for the entire query period, not time series data</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -48,7 +49,7 @@ public sealed class MonitorExcelReportWriter
     /// <list type="number">
     /// <item><description>Inputs - Report parameters</description></item>
     /// <item><description>Summary - Summary by component type with navigable index</description></item>
-    /// <item><description>Components - Table of all components</description></item>
+    /// <item><description>Components sheets - One per component type (host, service, database, etc.)</description></item>
     /// <item><description>Alerts - Table of all alerts</description></item>
     /// <item><description>Metric sheets - One per component type + metric combination</description></item>
     /// </list>
@@ -95,8 +96,8 @@ public sealed class MonitorExcelReportWriter
         Log.Debug("Writing Summary sheet...");
         WriteSummary(workbook, sheetRegistry, report);
 
-        Log.Debug("Writing Components sheet ({Count} rows)...", report.Components.Count);
-        WriteTableSheet(workbook, sheetRegistry, "Components", report.Components);
+        Log.Debug("Writing Components sheets by type...");
+        WriteComponentSheets(workbook, sheetRegistry, report);
 
         Log.Debug("Writing Alerts sheet ({Count} rows)...", report.Alerts.Count);
         WriteTableSheet(workbook, sheetRegistry, "Alerts", report.Alerts);
@@ -238,7 +239,26 @@ public sealed class MonitorExcelReportWriter
         row++;
 
         WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Inputs"), "Inputs", "Report parameters and metadata");
-        WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Components"), "Components", "Complete component inventory");
+
+        // Add links to component sheets grouped by type
+        row += 1;
+        ws.Cell(row, 1).Value = "Components by Type";
+        ws.Cell(row, 1).Style.Font.Bold = true;
+        row++;
+
+        var componentsByType = report.Components
+            .GroupBy(c => c.Type ?? "Unknown")
+            .OrderBy(g => g.Key);
+
+        foreach (var group in componentsByType)
+        {
+            var logicalName = SheetRegistry.BuildComponentTypeSheetName(group.Key);
+            var label = $"{group.Key} Components";
+            var description = $"{group.Count()} {group.Key} component(s)";
+            WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName(logicalName), label, description);
+        }
+
+        row += 1;
         WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Alerts"), "Alerts", "All alerts across components");
 
         // Add links to component-metric sheets
@@ -285,6 +305,44 @@ public sealed class MonitorExcelReportWriter
     }
 
     /// <summary>
+    /// Writes component sheets grouped by component type.
+    /// </summary>
+    /// <param name="workbook">The Excel workbook where sheets will be added.</param>
+    /// <param name="sheetRegistry">Sheet name registry to manage duplicates and truncation.</param>
+    /// <param name="report">The report with components to write.</param>
+    /// <remarks>
+    /// <para>
+    /// Creates one sheet per component type (host, service, database, etc.).
+    /// </para>
+    /// <para>
+    /// Each sheet contains a table with all components of that type, including:
+    /// <list type="bullet">
+    /// <item><description>Component ID, Name, Type, Subtype</description></item>
+    /// <item><description>Status, Health metrics</description></item>
+    /// <item><description>Metric and Alert counts</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// Sheet name: Components_{ComponentType} (e.g., "Components_host", "Components_service")
+    /// </para>
+    /// </remarks>
+    private static void WriteComponentSheets(XLWorkbook workbook, SheetRegistry sheetRegistry, MonitorExcelReport report)
+    {
+        var componentsByType = report.Components
+            .GroupBy(c => c.Type ?? "Unknown")
+            .OrderBy(g => g.Key);
+
+        foreach (var group in componentsByType)
+        {
+            var logicalName = SheetRegistry.BuildComponentTypeSheetName(group.Key);
+            var componentsList = group.OrderBy(c => c.Name).ToList();
+
+            Log.Debug("Writing {Type} components sheet ({Count} rows)...", group.Key, componentsList.Count);
+            WriteTableSheet(workbook, sheetRegistry, logicalName, componentsList);
+        }
+    }
+
+    /// <summary>
     /// Writes metric sheets grouped by component type and metric name.
     /// </summary>
     /// <param name="workbook">The Excel workbook where sheets will be added.</param>
@@ -306,7 +364,7 @@ public sealed class MonitorExcelReportWriter
     /// Each sheet contains:
     /// <list type="number">
     /// <item><description>Header: Component Type, Metric Name, Unit</description></item>
-    /// <item><description>Data table: All metric_data rows from ArcGIS Monitor ordered by ComponentName → MetricName → ObservedAt</description></item>
+    /// <item><description>Consolidated statistics table: Combines metric configuration (thresholds, alerting) with aggregated statistics from the query period (min, max, avg, stddev, percentile 95, sum, count)</description></item>
     /// </list>
     /// </para>
     /// <para>
@@ -319,7 +377,7 @@ public sealed class MonitorExcelReportWriter
         var metricsByTypeGroups = report.Metrics
             .GroupBy(m =>
             {
-                var componentType = report.Components.FirstOrDefault(c => c.ComponentId == m.ComponentId)?.Type ?? "Unknown";
+                var componentType = m.ComponentType ?? "Unknown";
                 var metricName = m.MetricName ?? $"Metric_{m.MetricId}";
                 var unit = m.Unit;
 
@@ -359,30 +417,52 @@ public sealed class MonitorExcelReportWriter
             ws.Cell(4, 2).Value = group.Key.Unit;
             ws.Cell(4, 1).Style.Font.Bold = true;
 
-            // Collect all metric data for all metrics in this group
-            var allMetricData = new List<MetricDataReportRow>();
-            foreach (var metric in group)
-            {
-                var metricData = report.MetricData
-                    .Where(md => md.MetricId == metric.MetricId)
-                    .ToList();
-                allMetricData.AddRange(metricData);
-            }
+            // Create consolidated view: metric configuration + statistics from the query period
+            var consolidatedData = group
+                .Select(metric =>
+                {
+                    // Find the statistics for this metric (if available)
+                    var stats = report.MetricData.FirstOrDefault(md => md.MetricId == metric.MetricId);
 
-            // Sort by component name, metric name (important for wildcard groups), and then by observed time
-            allMetricData = [.. allMetricData
-                .OrderBy(md => md.ComponentName)
-                .ThenBy(md => md.MetricName)
-                .ThenBy(md => md.ObservedAt)];
+                    return new
+                    {
+                        metric.CollectionName,
+                        metric.ComponentId,
+                        metric.ComponentName,
+                        metric.ComponentType,
+                        metric.ComponentSubtype,
+                        metric.MetricId,
+                        metric.MetricName,
+                        metric.Unit,
+                        metric.Status,
+                        metric.IsAlertingEnabled,
+                        metric.Aggregation,
+                        metric.Operator,
+                        metric.InfoThreshold,
+                        metric.WarningThreshold,
+                        metric.CriticalThreshold,
+                        // Statistics from the query period
+                        stats?.MinValue,
+                        stats?.MaxValue,
+                        stats?.AvgValue,
+                        stats?.StdDevValue,
+                        stats?.Percentile95Value,
+                        stats?.SumValue,
+                        stats?.CountValue
+                    };
+                })
+                .OrderBy(m => m.ComponentName)
+                .ThenBy(m => m.MetricName)
+                .ToList();
 
-            // Write metric data table
-            if (allMetricData.Any())
+            // Write consolidated statistics table
+            if (consolidatedData.Any())
             {
-                WriteRows(ws, 6, allMetricData);
+                WriteRows(ws, 6, consolidatedData);
             }
             else
             {
-                ws.Cell(6, 1).Value = "No metric data available";
+                ws.Cell(6, 1).Value = "No metrics available";
             }
         }
     }
@@ -692,6 +772,28 @@ public sealed class MonitorExcelReportWriter
             var sanitizedComponent = SanitizeSheetNameStatic(componentName);
             var sanitizedMetric = SanitizeSheetNameStatic(metricName);
             return $"{sanitizedComponent}_{sanitizedMetric}";
+        }
+
+        /// <summary>
+        /// Builds a sheet name for components grouped by type.
+        /// Format: Components_{ComponentType}
+        /// </summary>
+        /// <param name="componentType">Component type (host, service, database, etc.).</param>
+        /// <returns>Sanitized logical name for the component type sheet.</returns>
+        /// <remarks>
+        /// <para>
+        /// Examples:
+        /// <list type="bullet">
+        /// <item><description>"host" → "Components_host"</description></item>
+        /// <item><description>"service" → "Components_service"</description></item>
+        /// <item><description>"database" → "Components_database"</description></item>
+        /// </list>
+        /// </para>
+        /// </remarks>
+        public static string BuildComponentTypeSheetName(string componentType)
+        {
+            var sanitizedType = SanitizeSheetNameStatic(componentType).Replace(" ", "");
+            return $"Components_{sanitizedType}";
         }
 
         /// <summary>

@@ -97,6 +97,9 @@ public sealed class ServerConfiguration
     [JsonPropertyName("ignore_ssl_errors")]
     public bool IgnoreSslErrors { get; set; }  = true;
 
+    [JsonPropertyName("timeout_seconds")]
+    public int TimeoutSeconds { get; set; } = 300;
+
     public string GetPassword()
     {
         if(!PasswordEncoding)

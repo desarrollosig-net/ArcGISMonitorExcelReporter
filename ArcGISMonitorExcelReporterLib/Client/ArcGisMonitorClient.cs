@@ -24,11 +24,25 @@ public sealed class ArcGisMonitorClient : IDisposable
     /// <param name="baseUri">The base URI for the ArcGIS Monitor server (e.g., https://monitor.example.com:30443/).</param>
     /// <param name="httpClient">Optional HTTP client instance. If null, a new client will be created and disposed by this instance.</param>
     /// <param name="jsonOptions">Optional JSON serialization options. If null, default Monitor JSON options will be used.</param>
-    public ArcGisMonitorClient(Uri baseUri, HttpClient? httpClient = null, JsonSerializerOptions? jsonOptions = null)
+    /// <param name="timeoutSeconds">Optional timeout in seconds for HTTP requests. Default is 300 seconds (5 minutes). Use -1 for infinite timeout.</param>
+    public ArcGisMonitorClient(Uri baseUri, HttpClient? httpClient = null, JsonSerializerOptions? jsonOptions = null, int timeoutSeconds = 300)
     {
         _disposeClient = httpClient is null;
         _httpClient = httpClient ?? new HttpClient();
         _httpClient.BaseAddress = baseUri;
+
+        // Configure timeout
+        if (timeoutSeconds > 0)
+        {
+            _httpClient.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+            Log.Debug("HttpClient timeout configured: {Timeout} seconds", timeoutSeconds);
+        }
+        else if (timeoutSeconds == -1)
+        {
+            _httpClient.Timeout = Timeout.InfiniteTimeSpan;
+            Log.Debug("HttpClient timeout configured: Infinite");
+        }
+
         _jsonOptions = jsonOptions ?? MonitorJson.Options;
     }
 

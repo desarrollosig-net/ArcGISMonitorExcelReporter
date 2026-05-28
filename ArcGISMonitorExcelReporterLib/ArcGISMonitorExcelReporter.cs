@@ -136,6 +136,6 @@ public sealed class ArcGISMonitorExcelReporter(HttpClient? httpClient = null)
             clientToUse = new HttpClient(handler);
         }
 
-        return new ArcGisMonitorClient(baseUri, clientToUse);
+        return new ArcGisMonitorClient(baseUri, clientToUse, timeoutSeconds: configuration.Server.TimeoutSeconds);
     }
 }

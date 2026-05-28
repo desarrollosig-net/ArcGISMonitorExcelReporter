@@ -26,7 +26,8 @@ public static class ExampleUsage
                 Url = "https://monitor.example.com:30443/arcgis",
                 Username = "user",
                 Password = "password",
-                PasswordEncoding = false
+                PasswordEncoding = false,
+                TimeoutSeconds = 300
             },
             Report = new ReportConfiguration
             {
