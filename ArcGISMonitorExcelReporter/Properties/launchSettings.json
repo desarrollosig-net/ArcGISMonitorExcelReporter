@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "Development - inocar.json": {
+      "commandName": "Project",
+      "commandLineArgs": "-f \"C:\\Users\\Mtorres\\source\\repos\\ArcGISMonitorExcelReporter\\data\\inocar.json\"",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    },
+    "Development - Relative Path": {
+      "commandName": "Project",
+      "commandLineArgs": "-f \"..\\..\\..\\data\\config.json\"",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    },
+    "Sample Configuration": {
+      "commandName": "Project",
+      "commandLineArgs": "-f \"..\\..\\..\\ArcGISMonitorExcelReporterLib\\Samples\\agm2023x.sample.json\"",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    },
+    "Test - Help": {
+      "commandName": "Project",
+      "commandLineArgs": "",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    },
+    "Production": {
+      "commandName": "Project",
+      "commandLineArgs": "-f \"C:\\Production\\Config\\monitor-config.json\"",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Production"
+      }
+    }
+  }
+}

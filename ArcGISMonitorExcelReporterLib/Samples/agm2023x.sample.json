@@ -4,7 +4,8 @@
     "username": "usuario",
     "password": "cambiar_por_password_o_base64",
     "password_encoding": false,
-    "ignore_ssl_errors": false
+    "ignore_ssl_errors": false,
+    "timeout_seconds": 300
   },
   "report": {
     "collection": "Sample Collection",

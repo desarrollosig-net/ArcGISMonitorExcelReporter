@@ -126,6 +126,7 @@ Server connection settings.
 - `Password`: Password (plain text or Base64 encoded)
 - `PasswordEncoding`: If true, password is Base64 UTF-8 encoded
 - `IgnoreSslErrors`: If true, SSL certificate validation is disabled (default: true)
+- `TimeoutSeconds`: HTTP request timeout in seconds (default: 300). Use -1 for infinite timeout
 
 **Methods:**
 

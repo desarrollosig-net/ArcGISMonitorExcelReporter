@@ -123,7 +123,8 @@ var configuration = new ReporterConfiguration
         Url = "https://monitor.example.com:30443/arcgis",
         Username = "user",
         Password = "password",
-        PasswordEncoding = false
+        PasswordEncoding = false,
+        TimeoutSeconds = 300
     },
     Report = new ReportConfiguration
     {
@@ -154,6 +155,7 @@ The JSON file must contain these blocks:
 - `server.username`: authentication username.
 - `server.password`: password. Should not be versioned in repositories.
 - `server.password_encoding`: if `true`, the password is interpreted as Base64 UTF-8.
+- `server.timeout_seconds`: HTTP request timeout in seconds (default: 300). Use -1 for infinite timeout. Increase this value if querying large datasets or slow networks.
 - `report.collection`: collection name.
 - `report.timezone`: timezone used to calculate the time range.
 - `report.end_time`: end date or `now=true`.
@@ -190,6 +192,7 @@ Sheet names are sanitized to comply with Excel restrictions: maximum 31 characte
 - 📝 [Logging Guide](Docs/logging.md) - Logging configuration and usage
 - 🗂️ [Folder Structure](Docs/folder-structure.md) - Output organization
 - 🔌 [Extracted Endpoints](Docs/extracted-endpoints.md) - ArcGIS Monitor API integration
+- 🔧 [Troubleshooting Guide](Docs/troubleshooting.md) - Common issues and solutions
 - ✅ [Documentation Status](Docs/documentation-completion-report.md) - Complete documentation report
 
 ### Documentation Features
