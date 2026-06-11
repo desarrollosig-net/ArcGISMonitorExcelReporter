@@ -2,872 +2,1967 @@ using ClosedXML.Excel;
 using System.Reflection;
 using Serilog;
 
-namespace ArcGISMonitorExcelReporterLib.Reporting;
-
-/// <summary>
-/// Excel report generator for ArcGIS Monitor data.
-/// Creates structured Excel files with multiple sheets including summary, components, alerts, and metric data.
-/// </summary>
-/// <remarks>
-/// <para>
-/// This class transforms <see cref="MonitorExcelReport"/> objects into well-formatted Excel (.xlsx) files using ClosedXML.
-/// </para>
-/// <para>
-/// Generated Excel file structure:
-/// <list type="bullet">
-/// <item><description><b>Inputs:</b> Report parameters (dates, counts)</description></item>
-/// <item><description><b>Summary:</b> Summary by component type with alerts and sheet index</description></item>
-/// <item><description><b>Components sheets:</b> One per component type (host, service, database, etc.)</description></item>
-/// <item><description><b>Alerts:</b> All alerts for the period</description></item>
-/// <item><description><b>Metric sheets:</b> One per component type + metric, with aggregated data from ArcGIS Monitor</description></item>
-/// </list>
-/// </para>
-/// <para>
-/// Special features:
-/// <list type="bullet">
-/// <item><description>Host process metrics (Process CPU*, Process Instances*, Process Memory*) are grouped with wildcards</description></item>
-/// <item><description>Sheet names sanitized and truncated to 31 characters (Excel limit)</description></item>
-/// <item><description>Hyperlinks between sheets for easy navigation</description></item>
-/// <item><description>Excel tables with automatic formatting and frozen headers</description></item>
-/// <item><description>Percentile 95 calculation using formula: avg + 1.645 * stddev (when count ≥ 30)</description></item>
-/// <item><description>Metric sheets show consolidated statistics for the entire query period, not time series data</description></item>
-/// </list>
-/// </para>
-/// </remarks>
-public sealed class MonitorExcelReportWriter
+namespace ArcGISMonitorExcelReporterLib.Reporting
 {
     /// <summary>
-    /// Saves an ArcGIS Monitor report to an Excel (.xlsx) file.
+    /// Excel report generator for ArcGIS Monitor data.
+    /// Creates structured Excel files with multiple sheets including summary, components, alerts, and metric data.
     /// </summary>
-    /// <param name="report">The report with all component, metric, and alert data.</param>
-    /// <param name="outputPath">Full path to the Excel file to create. Directory will be created if it doesn't exist.</param>
-    /// <exception cref="ArgumentNullException">If <paramref name="report"/> is null.</exception>
-    /// <exception cref="ArgumentException">If <paramref name="outputPath"/> is empty or null.</exception>
     /// <remarks>
     /// <para>
-    /// This method creates a complete Excel file with the following sheets:
-    /// <list type="number">
-    /// <item><description>Inputs - Report parameters</description></item>
-    /// <item><description>Summary - Summary by component type with navigable index</description></item>
-    /// <item><description>Components sheets - One per component type (host, service, database, etc.)</description></item>
-    /// <item><description>Alerts - Table of all alerts</description></item>
-    /// <item><description>Metric sheets - One per component type + metric combination</description></item>
+    /// This class transforms <see cref="MonitorExcelReport"/> objects into well-formatted Excel (.xlsx) files using ClosedXML.
+    /// </para>
+    /// <para>
+    /// Generated Excel file structure:
+    /// <list type="bullet">
+    /// <item><description><b>Inputs:</b> Report parameters (dates, counts)</description></item>
+    /// <item><description><b>Summary:</b> Summary by component type with alerts and sheet index</description></item>
+    /// <item><description><b>Components sheets:</b> One per component type (host, service, database, etc.)</description></item>
+    /// <item><description><b>Alerts:</b> All alerts for the period</description></item>
+    /// <item><description><b>Metric sheets:</b> One per component type + metric, with aggregated data from ArcGIS Monitor</description></item>
     /// </list>
     /// </para>
     /// <para>
-    /// The file is saved using ClosedXML and all processing is logged with Serilog.
+    /// Special features:
+    /// <list type="bullet">
+    /// <item><description>Host process metrics (Process CPU*, Process Instances*, Process Memory*) are grouped with wildcards</description></item>
+    /// <item><description>Sheet names sanitized and truncated to 31 characters (Excel limit)</description></item>
+    /// <item><description>Hyperlinks between sheets for easy navigation</description></item>
+    /// <item><description>Excel tables with automatic formatting and frozen headers</description></item>
+    /// <item><description>Percentile 95 calculation using exact z-score (1.6448536269514722) constrained by max observed value</description></item>
+    /// <item><description>Metric sheets show consolidated statistics for the entire query period, not time series data</description></item>
+    /// </list>
     /// </para>
     /// </remarks>
-    /// <example>
-    /// <code>
-    /// var report = new MonitorExcelReport 
-    /// { 
-    ///     Components = components, 
-    ///     Metrics = metrics,
-    ///     MetricData = metricData 
-    /// };
-    /// var writer = new MonitorExcelReportWriter();
-    /// writer.Save(report, @"C:\Reports\monitor_report_20250127.xlsx");
-    /// </code>
-    /// </example>
-    public static void Save(MonitorExcelReport report, string outputPath)
+    public sealed class MonitorExcelReportWriter
     {
-        ArgumentNullException.ThrowIfNull(report);
-        if(string.IsNullOrWhiteSpace(outputPath))
+        /// <summary>
+        /// Saves an ArcGIS Monitor report to an Excel (.xlsx) file.
+        /// </summary>
+        /// <param name="report">The report with all component, metric, and alert data.</param>
+        /// <param name="outputPath">Full path to the Excel file to create. Directory will be created if it doesn't exist.</param>
+        /// <exception cref="ArgumentNullException">If <paramref name="report"/> is null.</exception>
+        /// <exception cref="ArgumentException">If <paramref name="outputPath"/> is empty or null.</exception>
+        /// <remarks>
+        /// <para>
+        /// This method creates a complete Excel file with the following structure:
+        /// <list type="number">
+        /// <item><description><b>Inputs</b> - Report parameters and metadata</description></item>
+        /// <item><description><b>Summary</b> - Executive summary with navigable index</description></item>
+        /// <item><description><b>For each component type (host, service, database, etc.):</b>
+        ///   <list type="bullet">
+        ///   <item><description>Component summary sheet: All components of that type with non-null attributes</description></item>
+        ///   <item><description>For each metric of that component type:
+        ///     <list type="bullet">
+        ///     <item><description>Metric summary sheet: Characteristics + aggregated data by component (Count, Min, Max, Avg, StdDev, P95) + alert counts</description></item>
+        ///     <item><description>Time series sheet: Avg values every 15 minutes by component with chart placeholder and instructions</description></item>
+        ///     </list>
+        ///   </description></item>
+        ///   </list>
+        /// </description></item>
+        /// <item><description><b>Alerts</b> - Table of all alerts</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// Sheet ordering: Inputs → Summary → (ComponentType1 → Metric1 Summary → Metric1 TimeSeries → Metric2 Summary → Metric2 TimeSeries → ...) → ComponentType2 → ... → Alerts
+        /// </para>
+        /// <para>
+        /// Charts: ClosedXML does not support automated chart creation. Each time series sheet includes formatted instructions
+        /// for users to manually create line charts from the data tables.
+        /// </para>
+        /// <para>
+        /// The file is saved using ClosedXML and all processing is logged with Serilog.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var report = new MonitorExcelReport 
+        /// { 
+        ///     Components = components, 
+        ///     Metrics = metrics,
+        ///     MetricData = metricData 
+        /// };
+        /// MonitorExcelReportWriter.Save(report, @"C:\Reports\monitor_report_20250127.xlsx");
+        /// </code>
+        /// </example>
+        public static void Save(MonitorExcelReport report, string outputPath)
         {
-            throw new ArgumentException("Excel file path is required.", nameof(outputPath));
+            ArgumentNullException.ThrowIfNull(report);
+            if(string.IsNullOrWhiteSpace(outputPath))
+            {
+                throw new ArgumentException("Excel file path is required.", nameof(outputPath));
+            }
+
+            Log.Information("Creating Excel workbook...");
+
+            var directory = Path.GetDirectoryName(Path.GetFullPath(outputPath));
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+                Log.Debug("Output directory: {Directory}", directory);
+            }
+
+            using var workbook = new XLWorkbook();
+            var sheetRegistry = new SheetRegistry(workbook);
+
+            try
+            {
+                Log.Debug("Writing Inputs sheet...");
+                WriteInputs(workbook, sheetRegistry, report);
+
+                Log.Debug("Writing Summary sheet...");
+                WriteSummary(workbook, sheetRegistry, report);
+
+                Log.Debug("Writing Components sheets by type...");
+                WriteComponentsWithMetricsSheets(workbook, sheetRegistry, report);
+
+                Log.Debug("Writing Alerts sheet ({Count} rows)...", report.Alerts.Count);
+                WriteTableSheet(workbook, sheetRegistry, "Alerts", report.Alerts);
+
+                Log.Information("Saving Excel file to: {OutputPath}", outputPath);
+                workbook.SaveAs(outputPath);
+
+                var fileInfo = new FileInfo(outputPath);
+                Log.Information("Excel file saved successfully. Size: {Size:N0} bytes", fileInfo.Length);
+            }
+            catch (ArgumentException ex) when (ex.Message.Contains("more than one field name"))
+            {
+                Log.Error(ex, "Duplicate column name detected in Excel table. This usually means there are duplicate property names in the data model.");
+                Log.Error("Attempting to identify duplicate columns...");
+
+                LogDuplicateColumns(workbook);
+
+                throw new InvalidOperationException(
+                    "Failed to create Excel file due to duplicate column names. " +
+                    "This is usually caused by duplicate property names in the component data. " +
+                    "Check the logs above for details about which columns are duplicated.", ex);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Unexpected error while creating Excel workbook");
+                throw;
+            }
         }
 
-        Log.Information("Creating Excel workbook...");
-
-        var directory = Path.GetDirectoryName(Path.GetFullPath(outputPath));
-        if (!string.IsNullOrWhiteSpace(directory))
+        /// <summary>
+        /// Writes the "Inputs" sheet with report parameters and metadata.
+        /// </summary>
+        /// <param name="workbook">The Excel workbook where the sheet will be added.</param>
+        /// <param name="sheetRegistry">Sheet name registry to avoid duplicates.</param>
+        /// <param name="report">The report with data to display.</param>
+        /// <remarks>
+        /// Displays information such as generation dates, time range, and totals of components/metrics/alerts.
+        /// </remarks>
+        private static void WriteInputs(XLWorkbook workbook, SheetRegistry sheetRegistry, MonitorExcelReport report)
         {
-            Directory.CreateDirectory(directory);
-            Log.Debug("Output directory: {Directory}", directory);
+            var ws = workbook.Worksheets.Add("Inputs");
+            sheetRegistry.Register("Inputs", "Inputs");
+
+            ws.Cell(1, 1).Value = "Report Parameters";
+            ws.Cell(1, 1).Style.Font.Bold = true;
+            ws.Cell(1, 1).Style.Font.FontSize = 16;
+
+            var metadata = new (string Label, object? Value)[]
+            {
+                ("Generated UTC", report.GeneratedAtUtc),
+                ("From UTC", report.FromUtc),
+                ("To UTC", report.ToUtc),
+                ("Total Collections", report.Collections.Count),
+                ("Total Components", report.Components.Count),
+                ("Total Metrics", report.Metrics.Count),
+                ("Total Metric Data Points", report.MetricData.Count),
+                ("Total Alerts", report.Alerts.Count)
+            };
+
+            var row = 3;
+            foreach (var (Label, Value) in metadata)
+            {
+                ws.Cell(row, 1).Value = Label;
+                ws.Cell(row, 1).Style.Font.Bold = true;
+                SetCellValue(ws.Cell(row, 2), Value);
+                row++;
+            }
+
+            ws.Columns().AdjustToContents();
         }
 
-        using var workbook = new XLWorkbook();
-        var sheetRegistry = new SheetRegistry(workbook);
-
-        Log.Debug("Writing Inputs sheet...");
-        WriteInputs(workbook, sheetRegistry, report);
-
-        Log.Debug("Writing Summary sheet...");
-        WriteSummary(workbook, sheetRegistry, report);
-
-        Log.Debug("Writing Components sheets by type...");
-        WriteComponentSheets(workbook, sheetRegistry, report);
-
-        Log.Debug("Writing Alerts sheet ({Count} rows)...", report.Alerts.Count);
-        WriteTableSheet(workbook, sheetRegistry, "Alerts", report.Alerts);
-
-        Log.Debug("Writing component-metric sheets...");
-        WriteComponentMetricSheets(workbook, sheetRegistry, report);
-
-        Log.Information("Saving Excel file to: {OutputPath}", outputPath);
-        workbook.SaveAs(outputPath);
-
-        var fileInfo = new FileInfo(outputPath);
-        Log.Information("Excel file saved successfully. Size: {Size:N0} bytes", fileInfo.Length);
-    }
-
-    /// <summary>
-    /// Writes the "Inputs" sheet with report parameters and metadata.
-    /// </summary>
-    /// <param name="workbook">The Excel workbook where the sheet will be added.</param>
-    /// <param name="sheetRegistry">Sheet name registry to avoid duplicates.</param>
-    /// <param name="report">The report with data to display.</param>
-    /// <remarks>
-    /// Displays information such as generation dates, time range, and totals of components/metrics/alerts.
-    /// </remarks>
-    private static void WriteInputs(XLWorkbook workbook, SheetRegistry sheetRegistry, MonitorExcelReport report)
-    {
-        var ws = workbook.Worksheets.Add("Inputs");
-        sheetRegistry.Register("Inputs", "Inputs");
-
-        ws.Cell(1, 1).Value = "Report Parameters";
-        ws.Cell(1, 1).Style.Font.Bold = true;
-        ws.Cell(1, 1).Style.Font.FontSize = 16;
-
-        var metadata = new (string Label, object? Value)[]
+        /// <summary>
+        /// Writes the "Summary" sheet with executive summary and navigable index of all sheets.
+        /// </summary>
+        /// <param name="workbook">The Excel workbook where the sheet will be added.</param>
+        /// <param name="sheetRegistry">Sheet name registry to create correct hyperlinks.</param>
+        /// <param name="report">The report with data to summarize.</param>
+        /// <remarks>
+        /// <para>
+        /// Contains two main sections:
+        /// </para>
+        /// <list type="number">
+        /// <item><description>
+        /// <b>Summary table:</b> Groups components by Type and Subtype, showing:
+        /// - Number of components
+        /// - Critical, warning, and info alerts
+        /// </description></item>
+        /// <item><description>
+        /// <b>Sheet index:</b> Clickable links to all report sheets, including
+        /// grouped metric sheets (with wildcards for Process CPU*, Process Instances*, Process Memory*)
+        /// </description></item>
+        /// </list>
+        /// </remarks>
+        private static void WriteSummary(XLWorkbook workbook, SheetRegistry sheetRegistry, MonitorExcelReport report)
         {
-            ("Generated UTC", report.GeneratedAtUtc),
-            ("From UTC", report.FromUtc),
-            ("To UTC", report.ToUtc),
-            ("Total Collections", report.Collections.Count),
-            ("Total Components", report.Components.Count),
-            ("Total Metrics", report.Metrics.Count),
-            ("Total Metric Data Points", report.MetricData.Count),
-            ("Total Alerts", report.Alerts.Count)
-        };
+            var ws = workbook.Worksheets.Add("Summary");
+            sheetRegistry.Register("Summary", "Summary");
 
-        var row = 3;
-        foreach (var item in metadata)
-        {
-            ws.Cell(row, 1).Value = item.Label;
+            ws.Cell(1, 1).Value = "ArcGIS Monitor - Summary Report";
+            ws.Cell(1, 1).Style.Font.Bold = true;
+            ws.Cell(1, 1).Style.Font.FontSize = 16;
+
+            // Group components by type and category
+            var summaryData = report.Components
+                .GroupBy(c => new { c.Type, c.Subtype })
+                .Select(g =>
+                {
+                    var componentIds = g.Select(c => c.ComponentId).ToList();
+                    var componentMetrics = report.Metrics.Where(m => componentIds.Contains(m.ComponentId)).ToList();
+                    var metricIds = componentMetrics.Select(m => m.MetricId).ToList();
+                    var componentAlerts = report.Alerts.Where(a => componentIds.Contains(a.ComponentId ?? 0)).ToList();
+
+                    return new
+                    {
+                        ComponentType = g.Key.Type ?? "Unknown",
+                        Category = g.Key.Subtype ?? "General",
+                        ComponentCount = g.Count(),
+                        CriticalAlerts = componentAlerts.Count(a => a.CriticalThreshold.HasValue && a.Status == 2),
+                        WarningAlerts = componentAlerts.Count(a => a.WarningThreshold.HasValue && a.Status == 1),
+                        InfoAlerts = componentAlerts.Count(a => a.InfoThreshold.HasValue && a.Status == 0)
+                    };
+                })
+                .OrderBy(x => x.ComponentType)
+                .ThenBy(x => x.Category)
+                .ToList();
+
+            // Write summary table
+            var row = 3;
+            ws.Cell(row, 1).Value = "Component Type";
+            ws.Cell(row, 2).Value = "Category";
+            ws.Cell(row, 3).Value = "Number of Components";
+            ws.Cell(row, 4).Value = "Critical Alerts";
+            ws.Cell(row, 5).Value = "Warning Alerts";
+            ws.Cell(row, 6).Value = "Info Alerts";
+            ws.Range(row, 1, row, 6).Style.Font.Bold = true;
+            ws.Range(row, 1, row, 6).Style.Fill.BackgroundColor = XLColor.LightGray;
+            row++;
+
+            foreach (var item in summaryData)
+            {
+                ws.Cell(row, 1).Value = item.ComponentType;
+                ws.Cell(row, 2).Value = item.Category;
+                ws.Cell(row, 3).Value = item.ComponentCount;
+                ws.Cell(row, 4).Value = item.CriticalAlerts;
+                ws.Cell(row, 5).Value = item.WarningAlerts;
+                ws.Cell(row, 6).Value = item.InfoAlerts;
+                row++;
+            }
+
+            // Add index section
+            row += 2;
+            ws.Cell(row, 1).Value = "Sheet Index";
             ws.Cell(row, 1).Style.Font.Bold = true;
-            SetCellValue(ws.Cell(row, 2), item.Value);
             row++;
-        }
 
-        ws.Columns().AdjustToContents();
-    }
+            WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Inputs"), "Inputs", "Report parameters and metadata");
 
-    /// <summary>
-    /// Writes the "Summary" sheet with executive summary and navigable index of all sheets.
-    /// </summary>
-    /// <param name="workbook">The Excel workbook where the sheet will be added.</param>
-    /// <param name="sheetRegistry">Sheet name registry to create correct hyperlinks.</param>
-    /// <param name="report">The report with data to summarize.</param>
-    /// <remarks>
-    /// <para>
-    /// Contains two main sections:
-    /// </para>
-    /// <list type="number">
-    /// <item><description>
-    /// <b>Summary table:</b> Groups components by Type and Subtype, showing:
-    /// - Number of components
-    /// - Critical, warning, and info alerts
-    /// </description></item>
-    /// <item><description>
-    /// <b>Sheet index:</b> Clickable links to all report sheets, including
-    /// grouped metric sheets (with wildcards for Process CPU*, Process Instances*, Process Memory*)
-    /// </description></item>
-    /// </list>
-    /// </remarks>
-    private static void WriteSummary(XLWorkbook workbook, SheetRegistry sheetRegistry, MonitorExcelReport report)
-    {
-        var ws = workbook.Worksheets.Add("Summary");
-        sheetRegistry.Register("Summary", "Summary");
-
-        ws.Cell(1, 1).Value = "ArcGIS Monitor - Summary Report";
-        ws.Cell(1, 1).Style.Font.Bold = true;
-        ws.Cell(1, 1).Style.Font.FontSize = 16;
-
-        // Group components by type and category
-        var summaryData = report.Components
-            .GroupBy(c => new { c.Type, c.Subtype })
-            .Select(g =>
-            {
-                var componentIds = g.Select(c => c.ComponentId).ToList();
-                var componentMetrics = report.Metrics.Where(m => componentIds.Contains(m.ComponentId)).ToList();
-                var metricIds = componentMetrics.Select(m => m.MetricId).ToList();
-                var componentAlerts = report.Alerts.Where(a => componentIds.Contains(a.ComponentId ?? 0)).ToList();
-
-                return new
-                {
-                    ComponentType = g.Key.Type ?? "Unknown",
-                    Category = g.Key.Subtype ?? "General",
-                    ComponentCount = g.Count(),
-                    CriticalAlerts = componentAlerts.Count(a => a.CriticalThreshold.HasValue && a.Status == 2),
-                    WarningAlerts = componentAlerts.Count(a => a.WarningThreshold.HasValue && a.Status == 1),
-                    InfoAlerts = componentAlerts.Count(a => a.InfoThreshold.HasValue && a.Status == 0)
-                };
-            })
-            .OrderBy(x => x.ComponentType)
-            .ThenBy(x => x.Category)
-            .ToList();
-
-        // Write summary table
-        var row = 3;
-        ws.Cell(row, 1).Value = "Component Type";
-        ws.Cell(row, 2).Value = "Category";
-        ws.Cell(row, 3).Value = "Number of Components";
-        ws.Cell(row, 4).Value = "Critical Alerts";
-        ws.Cell(row, 5).Value = "Warning Alerts";
-        ws.Cell(row, 6).Value = "Info Alerts";
-        ws.Range(row, 1, row, 6).Style.Font.Bold = true;
-        ws.Range(row, 1, row, 6).Style.Fill.BackgroundColor = XLColor.LightGray;
-        row++;
-
-        foreach (var item in summaryData)
-        {
-            ws.Cell(row, 1).Value = item.ComponentType;
-            ws.Cell(row, 2).Value = item.Category;
-            ws.Cell(row, 3).Value = item.ComponentCount;
-            ws.Cell(row, 4).Value = item.CriticalAlerts;
-            ws.Cell(row, 5).Value = item.WarningAlerts;
-            ws.Cell(row, 6).Value = item.InfoAlerts;
+            // Add links to component sheets grouped by type with their metrics
+            row += 1;
+            ws.Cell(row, 1).Value = "Components by Type (with Metrics)";
+            ws.Cell(row, 1).Style.Font.Bold = true;
             row++;
-        }
 
-        // Add index section
-        row += 2;
-        ws.Cell(row, 1).Value = "Sheet Index";
-        ws.Cell(row, 1).Style.Font.Bold = true;
-        row++;
+            var componentsByType = report.Components
+                .GroupBy(c => c.Type ?? "Unknown")
+                .OrderBy(g => g.Key);
 
-        WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Inputs"), "Inputs", "Report parameters and metadata");
-
-        // Add links to component sheets grouped by type
-        row += 1;
-        ws.Cell(row, 1).Value = "Components by Type";
-        ws.Cell(row, 1).Style.Font.Bold = true;
-        row++;
-
-        var componentsByType = report.Components
-            .GroupBy(c => c.Type ?? "Unknown")
-            .OrderBy(g => g.Key);
-
-        foreach (var group in componentsByType)
-        {
-            var logicalName = SheetRegistry.BuildComponentTypeSheetName(group.Key);
-            var label = $"{group.Key} Components";
-            var description = $"{group.Count()} {group.Key} component(s)";
-            WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName(logicalName), label, description);
-        }
-
-        row += 1;
-        WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Alerts"), "Alerts", "All alerts across components");
-
-        // Add links to component-metric sheets
-        row += 1;
-        ws.Cell(row, 1).Value = "Component Type Metrics (grouped by type and metric)";
-        ws.Cell(row, 1).Style.Font.Bold = true;
-        row++;
-
-        // Group by ComponentType + MetricName (with special grouping for host process metrics)
-        var metricsByTypeGroups = report.Metrics
-            .GroupBy(m =>
+            foreach (var group in componentsByType)
             {
-                var componentType = report.Components.FirstOrDefault(c => c.ComponentId == m.ComponentId)?.Type ?? "Unknown";
-                var metricName = m.MetricName ?? $"Metric_{m.MetricId}";
+                var componentType = group.Key;
+                var componentIds = group.Select(c => c.ComponentId).ToHashSet();
 
-                // For host components, group process metrics by wildcard
-                if (componentType.Equals("host", StringComparison.OrdinalIgnoreCase))
+                // Link to component summary
+                var logicalName = SheetRegistry.BuildComponentTypeSheetName(componentType);
+                var label = $"{componentType} Components";
+                var description = $"{group.Count()} {componentType} component(s)";
+                WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName(logicalName), label, description);
+
+                // Links to metrics for this component type
+                var metricsForType = report.Metrics
+                    .Where(m => componentIds.Contains(m.ComponentId))
+                    .Select(m => m.MetricName ?? "Unknown")
+                    .Distinct()
+                    .OrderBy(m => m);
+
+                foreach (var metricName in metricsForType)
                 {
-                    if (metricName.StartsWith("Process CPU", StringComparison.OrdinalIgnoreCase))
-                        return new { ComponentType = componentType, MetricName = "Process CPU*" };
-                    if (metricName.StartsWith("Process Instances", StringComparison.OrdinalIgnoreCase))
-                        return new { ComponentType = componentType, MetricName = "Process Instances*" };
-                    if (metricName.StartsWith("Process Memory", StringComparison.OrdinalIgnoreCase))
-                        return new { ComponentType = componentType, MetricName = "Process Memory*" };
+                    var summarySheet = sheetRegistry.GetOrCreatePhysicalName($"{componentType}_{metricName}");
+                    var timeSeriesSheet = sheetRegistry.GetOrCreatePhysicalName($"TS_{componentType}_{metricName}");
+
+                    WriteIndexLink(ws, row++, summarySheet, $"  • {metricName} - Summary", "Aggregated data and alerts");
+                    WriteIndexLink(ws, row++, timeSeriesSheet, $"  • {metricName} - Time Series", "Avg every 15 min with chart");
                 }
 
-                return new { ComponentType = componentType, MetricName = metricName };
-            })
-            .OrderBy(g => g.Key.ComponentType)
-            .ThenBy(g => g.Key.MetricName);
+                row++; // Blank line between component types
+            }
 
-        foreach (var group in metricsByTypeGroups)
-        {
-            var logicalName = SheetRegistry.BuildMetricByTypeSheetName(group.Key.ComponentType, group.Key.MetricName);
-            var label = $"{group.Key.ComponentType} - {group.Key.MetricName}";
-            var description = group.Key.MetricName.EndsWith("*") 
-                ? $"All metrics starting with '{group.Key.MetricName.TrimEnd('*')}' for {group.Key.ComponentType} components"
-                : $"All {group.Key.MetricName} data for {group.Key.ComponentType} components";
-            WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName(logicalName), label, description);
+            row += 1;
+            WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Alerts"), "Alerts", "All alerts across components");
+
+            ws.Columns().AdjustToContents();
+            ws.SheetView.FreezeRows(3);
         }
 
-        ws.Columns().AdjustToContents();
-        ws.SheetView.FreezeRows(3);
-    }
-
-    /// <summary>
-    /// Writes component sheets grouped by component type.
-    /// </summary>
-    /// <param name="workbook">The Excel workbook where sheets will be added.</param>
-    /// <param name="sheetRegistry">Sheet name registry to manage duplicates and truncation.</param>
-    /// <param name="report">The report with components to write.</param>
-    /// <remarks>
-    /// <para>
-    /// Creates one sheet per component type (host, service, database, etc.).
-    /// </para>
-    /// <para>
-    /// Each sheet contains a table with all components of that type, including:
-    /// <list type="bullet">
-    /// <item><description>Component ID, Name, Type, Subtype</description></item>
-    /// <item><description>Status, Health metrics</description></item>
-    /// <item><description>Metric and Alert counts</description></item>
-    /// </list>
-    /// </para>
-    /// <para>
-    /// Sheet name: Components_{ComponentType} (e.g., "Components_host", "Components_service")
-    /// </para>
-    /// </remarks>
-    private static void WriteComponentSheets(XLWorkbook workbook, SheetRegistry sheetRegistry, MonitorExcelReport report)
-    {
-        var componentsByType = report.Components
-            .GroupBy(c => c.Type ?? "Unknown")
-            .OrderBy(g => g.Key);
-
-        foreach (var group in componentsByType)
+        /// <summary>
+        /// Writes component sheets with their associated metrics intercalated.
+        /// For each component type: creates summary sheet, then all metric sheets for that type.
+        /// </summary>
+        /// <param name="workbook">The Excel workbook where sheets will be added.</param>
+        /// <param name="sheetRegistry">Sheet name registry to manage duplicates and truncation.</param>
+        /// <param name="report">The report with components to write.</param>
+        /// <remarks>
+        /// Structure: ComponentType1 → Metric1 (Summary + TS) → Metric2 (Summary + TS) → ComponentType2 → ...
+        /// This creates a logical grouping where all metrics for a component type appear immediately after that component.
+        /// </remarks>
+        private static void WriteComponentsWithMetricsSheets(XLWorkbook workbook, SheetRegistry sheetRegistry, MonitorExcelReport report)
         {
-            var logicalName = SheetRegistry.BuildComponentTypeSheetName(group.Key);
-            var componentsList = group.OrderBy(c => c.Name).ToList();
+            var componentsByType = report.Components
+                .GroupBy(c => c.Type ?? "Unknown")
+                .OrderBy(g => g.Key);
 
-            Log.Debug("Writing {Type} components sheet ({Count} rows)...", group.Key, componentsList.Count);
-            WriteTableSheet(workbook, sheetRegistry, logicalName, componentsList);
-        }
-    }
-
-    /// <summary>
-    /// Writes metric sheets grouped by component type and metric name.
-    /// </summary>
-    /// <param name="workbook">The Excel workbook where sheets will be added.</param>
-    /// <param name="sheetRegistry">Sheet name registry to manage duplicates and truncation.</param>
-    /// <param name="report">The report with metrics and data to write.</param>
-    /// <remarks>
-    /// <para>
-    /// Creates one sheet per unique ComponentType + MetricName combination.
-    /// </para>
-    /// <para>
-    /// <b>Special grouping for host:</b> Process metrics are grouped with wildcards:
-    /// <list type="bullet">
-    /// <item><description>Process CPU* - All "Process CPU - [process]" metrics</description></item>
-    /// <item><description>Process Instances* - All "Process Instances - [process]" metrics</description></item>
-    /// <item><description>Process Memory* - All "Process Memory - [process]" metrics</description></item>
-    /// </list>
-    /// </para>
-    /// <para>
-    /// Each sheet contains:
-    /// <list type="number">
-    /// <item><description>Header: Component Type, Metric Name, Unit</description></item>
-    /// <item><description>Consolidated statistics table: Combines metric configuration (thresholds, alerting) with aggregated statistics from the query period (min, max, avg, stddev, percentile 95, sum, count)</description></item>
-    /// </list>
-    /// </para>
-    /// <para>
-    /// Sheet name: {ComponentType}{MetricName} without spaces (e.g., "hostCPUUtilized", "hostProcessCPU_")
-    /// </para>
-    /// </remarks>
-    private static void WriteComponentMetricSheets(XLWorkbook workbook, SheetRegistry sheetRegistry, MonitorExcelReport report)
-    {
-        // Group by ComponentType + MetricName (with special grouping for host process metrics)
-        var metricsByTypeGroups = report.Metrics
-            .GroupBy(m =>
+            foreach (var group in componentsByType)
             {
-                var componentType = m.ComponentType ?? "Unknown";
-                var metricName = m.MetricName ?? $"Metric_{m.MetricId}";
-                var unit = m.Unit;
+                var componentType = group.Key;
 
-                // For host components, group process metrics by wildcard
-                if (componentType.Equals("host", StringComparison.OrdinalIgnoreCase))
+                try
                 {
-                    if(metricName.StartsWith("Process CPU", StringComparison.OrdinalIgnoreCase))
-                        return new { ComponentType = componentType, MetricName = "Process CPU*", Unit = "varies" };
-                    if (metricName.StartsWith("Process Instances", StringComparison.OrdinalIgnoreCase))
-                        return new { ComponentType = componentType, MetricName = "Process Instances*", Unit = "varies" };
-                    if (metricName.StartsWith("Process Memory", StringComparison.OrdinalIgnoreCase))
-                        return new { ComponentType = componentType, MetricName = "Process Memory*", Unit = "varies" };
+                    var componentsList = group.OrderBy(c => c.Name).ToList();
+                    var componentIds = componentsList.Select(c => c.ComponentId).ToHashSet();
+
+                    Log.Information("Writing sheets for component type '{ComponentType}' with {Count} components", 
+                        componentType, componentsList.Count);
+
+                    // 1. Create component summary sheet
+                    var logicalName = SheetRegistry.BuildComponentTypeSheetName(componentType);
+                    var physicalName = sheetRegistry.GetOrCreatePhysicalName(logicalName);
+                    var ws = workbook.Worksheets.Add(physicalName);
+                    WriteBackToIndex(ws);
+
+                    // Title
+                    ws.Cell(2, 1).Value = $"{componentType} Components";
+                    ws.Cell(2, 1).Style.Font.Bold = true;
+                    ws.Cell(2, 1).Style.Font.FontSize = 14;
+                    ws.Cell(2, 1).Style.Fill.BackgroundColor = XLColor.FromArgb(68, 114, 196); // Blue
+                    ws.Cell(2, 1).Style.Font.FontColor = XLColor.White;
+
+                    // Write components table with non-empty columns only
+                    WriteComponentsSummaryTable(ws, 4, componentsList);
+
+                    ws.Columns().AdjustToContents();
+
+                    Log.Information("Successfully created component summary sheet for type '{ComponentType}'", componentType);
+
+                    // 2. Create metric sheets for this component type
+                    var metricsForType = report.Metrics
+                        .Where(m => componentIds.Contains(m.ComponentId))
+                        .GroupBy(m => m.MetricName ?? "Unknown")
+                        .OrderBy(g => g.Key);
+
+                    foreach (var metricGroup in metricsForType)
+                    {
+                        var metricName = metricGroup.Key;
+                        var metricsForName = metricGroup.ToList();
+
+                        try
+                        {
+                            Log.Debug("Processing metric '{MetricName}' for component type '{ComponentType}' ({Count} instances)", 
+                                metricName, componentType, metricsForName.Count);
+
+                            // Sheet 1: Metric Summary
+                            WriteMetricSummarySheet(workbook, sheetRegistry, componentType, metricName, metricsForName, report);
+
+                            // Sheet 2: Time Series
+                            WriteMetricTimeSeriesSheet(workbook, sheetRegistry, componentType, metricName, metricsForName, report);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error(ex, "Failed to create sheets for metric '{MetricName}' in component type '{ComponentType}'", 
+                                metricName, componentType);
+                        }
+                    }
                 }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to create sheets for component type '{ComponentType}'", componentType);
 
-                return new { ComponentType = componentType, MetricName = metricName, Unit = unit ?? string.Empty };
-            })
-            .OrderBy(g => g.Key.ComponentType)
-            .ThenBy(g => g.Key.MetricName);
+                    // Create error sheet
+                    try
+                    {
+                        var errorSheetName = sheetRegistry.GetOrCreatePhysicalName($"ERROR_{componentType}");
+                        var errorWs = workbook.Worksheets.Add(errorSheetName);
+                        errorWs.Cell(1, 1).Value = $"Error creating sheet for {componentType}";
+                        errorWs.Cell(2, 1).Value = ex.Message;
+                        errorWs.Cell(3, 1).Value = ex.StackTrace;
+                    }
+                    catch
+                    {
+                        Log.Error("Failed to create error sheet for component type '{ComponentType}'", componentType);
+                    }
+                }
+            }
+        }
 
-        foreach (var group in metricsByTypeGroups)
+        /// <summary>
+        /// Writes a metric summary sheet with characteristics, aggregated data, and alerts.
+        /// </summary>
+        private static void WriteMetricSummarySheet(
+            XLWorkbook workbook, 
+            SheetRegistry sheetRegistry,
+            string componentType,
+            string metricName, 
+            List<MetricReportRow> metrics,
+            MonitorExcelReport report)
         {
-            var logicalName = SheetRegistry.BuildMetricByTypeSheetName(group.Key.ComponentType, group.Key.MetricName);
+            var logicalName = $"{componentType}_{metricName}";
             var physicalName = sheetRegistry.GetOrCreatePhysicalName(logicalName);
             var ws = workbook.Worksheets.Add(physicalName);
             WriteBackToIndex(ws);
 
-            // Header with component type and metric information
-            ws.Cell(2, 1).Value = "Component Type";
-            ws.Cell(2, 2).Value = group.Key.ComponentType;
-            ws.Cell(2, 1).Style.Font.Bold = true;
+            try
+            {
+                var row = 2;
 
-            ws.Cell(3, 1).Value = "Metric";
-            ws.Cell(3, 2).Value = group.Key.MetricName;
-            ws.Cell(3, 1).Style.Font.Bold = true;
+                // Title
+                ws.Cell(row, 1).Value = $"Metric: {metricName} ({componentType})";
+                ws.Cell(row, 1).Style.Font.Bold = true;
+                ws.Cell(row, 1).Style.Font.FontSize = 16;
+                ws.Cell(row, 1).Style.Fill.BackgroundColor = XLColor.FromArgb(68, 114, 196);
+                ws.Cell(row, 1).Style.Font.FontColor = XLColor.White;
+                row += 2;
 
-            ws.Cell(4, 1).Value = "Unit";
-            ws.Cell(4, 2).Value = group.Key.Unit;
-            ws.Cell(4, 1).Style.Font.Bold = true;
+                // Metric characteristics from first instance
+                var firstMetric = metrics.First();
+                ws.Cell(row, 1).Value = "Unit";
+                ws.Cell(row, 1).Style.Font.Bold = true;
+                ws.Cell(row, 2).Value = firstMetric.Unit ?? "N/A";
+                row++;
 
-            // Create consolidated view: metric configuration + statistics from the query period
-            var consolidatedData = group
-                .Select(metric =>
-                {
-                    // Find the statistics for this metric (if available)
-                    var stats = report.MetricData.FirstOrDefault(md => md.MetricId == metric.MetricId);
+                ws.Cell(row, 1).Value = "Alerting Enabled";
+                ws.Cell(row, 1).Style.Font.Bold = true;
+                ws.Cell(row, 2).Value = firstMetric.IsAlertingEnabled ?? false;
+                row++;
 
-                    return new
-                    {
-                        metric.CollectionName,
-                        metric.ComponentId,
-                        metric.ComponentName,
-                        metric.ComponentType,
-                        metric.ComponentSubtype,
-                        metric.MetricId,
-                        metric.MetricName,
-                        metric.Unit,
-                        metric.Status,
-                        metric.IsAlertingEnabled,
-                        metric.Aggregation,
-                        metric.Operator,
-                        metric.InfoThreshold,
-                        metric.WarningThreshold,
-                        metric.CriticalThreshold,
-                        // Statistics from the query period
-                        stats?.MinValue,
-                        stats?.MaxValue,
-                        stats?.AvgValue,
-                        stats?.StdDevValue,
-                        stats?.Percentile95Value,
-                        stats?.SumValue,
-                        stats?.CountValue
-                    };
-                })
+                ws.Cell(row, 1).Value = "Aggregation";
+                ws.Cell(row, 1).Style.Font.Bold = true;
+                ws.Cell(row, 2).Value = firstMetric.Aggregation ?? "N/A";
+                row++;
+
+                ws.Cell(row, 1).Value = "Operator";
+                ws.Cell(row, 1).Style.Font.Bold = true;
+                ws.Cell(row, 2).Value = firstMetric.Operator ?? "N/A";
+                row += 2;
+
+                // Table: Component data with aggregates
+                ws.Cell(row, 1).Value = "Component Data with Aggregated Statistics";
+                ws.Cell(row, 1).Style.Font.Bold = true;
+                ws.Cell(row, 1).Style.Font.FontSize = 12;
+                row += 2;
+
+                WriteMetricComponentDataTable(ws, row, metrics, report.MetricData, report.Alerts);
+
+                ws.Columns().AdjustToContents();
+                Log.Debug("Created metric summary sheet for '{MetricName}' in '{ComponentType}'", metricName, componentType);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to write metric summary sheet for '{MetricName}' in '{ComponentType}'", metricName, componentType);
+                ws.Cell(2, 1).Value = $"Error: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Writes a table with component-level data for a metric including aggregates and alerts.
+        /// </summary>
+        private static void WriteMetricComponentDataTable(
+            IXLWorksheet ws,
+            int startRow,
+            List<MetricReportRow> metrics,
+            List<MetricDataReportRow> metricData,
+            List<AlertReportRow> alerts)
+        {
+            // Deduplicate metrics by MetricId
+            var uniqueMetrics = metrics
+                .GroupBy(m => m.MetricId)
+                .Select(g => g.First())
                 .OrderBy(m => m.ComponentName)
-                .ThenBy(m => m.MetricName)
                 .ToList();
 
-            // Write consolidated statistics table
-            if (consolidatedData.Any())
+            if (uniqueMetrics.Count != metrics.Count)
             {
-                WriteRows(ws, 6, consolidatedData);
+                Log.Warning("Removed {Count} duplicate metric(s) in metric component data table. Original: {Original}, Unique: {Unique}",
+                    metrics.Count - uniqueMetrics.Count, metrics.Count, uniqueMetrics.Count);
             }
-            else
+
+            var headers = new[]
+            { 
+                "Component Id", "Component Name", "Metric Name", "Metric Id", "Component Type", "Component SubType",
+                "Count", "Min", "Max", "Avg", "StdDev", "P95",
+                "Info Threshold", "Warning Threshold", "Critical Threshold",
+                "Info Alerts", "Warning Alerts", "Critical Alerts"
+            };
+
+            // Write headers
+            for (var i = 0; i < headers.Length; i++)
             {
-                ws.Cell(6, 1).Value = "No metrics available";
+                ws.Cell(startRow, i + 1).Value = headers[i];
+                ws.Cell(startRow, i + 1).Style.Font.Bold = true;
+                ws.Cell(startRow, i + 1).Style.Fill.BackgroundColor = XLColor.LightGray;
+            }
+
+            // Build data rows (using deduplicated metrics)
+            var currentRow = startRow + 1;
+            foreach (var metric in uniqueMetrics)
+            {
+                // La API devuelve un registro agregado por métrica con groupbyFieldsForStatistics
+                var aggregatedData = metricData.FirstOrDefault(md => md.MetricId == metric.MetricId);
+
+                // Usar directamente los valores agregados de la API
+                var count = aggregatedData?.CountValue ?? 0;
+                var minValue = aggregatedData?.MinValue;
+                var maxValue = aggregatedData?.MaxValue;
+                var avgValue = aggregatedData?.AvgValue;
+                var stdDevValue = aggregatedData?.StdDevValue;
+
+                // P95 calculation using exact z-score for normal distribution with max constraint
+                var p95Value = StatisticsCalculator.CalculatePercentile95(avgValue, stdDevValue, maxValue);
+
+                // Count alerts for this component
+                var componentAlerts = alerts.Where(a => a.ComponentId == metric.ComponentId && a.MetricId == metric.MetricId).ToList();
+                var infoAlerts = componentAlerts.Count(a => a.InfoThreshold.HasValue);
+                var warningAlerts = componentAlerts.Count(a => a.WarningThreshold.HasValue && a.Status == 1);
+                var criticalAlerts = componentAlerts.Count(a => a.CriticalThreshold.HasValue && a.Status == 2);
+
+                // Write row - Identification columns first
+                ws.Cell(currentRow, 1).Value = metric.ComponentId;
+                ws.Cell(currentRow, 2).Value = metric.ComponentName ?? "Unknown";
+                ws.Cell(currentRow, 3).Value = metric.MetricName ?? "Unknown";
+                ws.Cell(currentRow, 4).Value = metric.MetricId;
+                ws.Cell(currentRow, 5).Value = metric.ComponentType ?? "Unknown";
+                ws.Cell(currentRow, 6).Value = metric.ComponentSubtype ?? string.Empty;
+
+                // Statistical data
+                ws.Cell(currentRow, 7).Value = count;
+                SetCellValue(ws.Cell(currentRow, 8), minValue);
+                SetCellValue(ws.Cell(currentRow, 9), maxValue);
+                SetCellValue(ws.Cell(currentRow, 10), avgValue);
+                SetCellValue(ws.Cell(currentRow, 11), stdDevValue);
+                SetCellValue(ws.Cell(currentRow, 12), p95Value);
+
+                // Thresholds
+                SetCellValue(ws.Cell(currentRow, 13), metric.InfoThreshold);
+                SetCellValue(ws.Cell(currentRow, 14), metric.WarningThreshold);
+                SetCellValue(ws.Cell(currentRow, 15), metric.CriticalThreshold);
+
+                // Alert counts
+                ws.Cell(currentRow, 16).Value = infoAlerts;
+                ws.Cell(currentRow, 17).Value = warningAlerts;
+                ws.Cell(currentRow, 18).Value = criticalAlerts;
+
+                // Format numeric cells (statistical data and thresholds)
+                for (var col = 7; col <= 15; col++)
+                {
+                    if (ws.Cell(currentRow, col).Value.IsNumber)
+                    {
+                        ws.Cell(currentRow, col).Style.NumberFormat.Format = "#,##0.00";
+                    }
+                }
+
+                currentRow++;
+            }
+
+            // Create table
+            if (currentRow > startRow + 1)
+            {
+                var tableRange = ws.Range(startRow, 1, currentRow - 1, headers.Length);
+                var table = tableRange.CreateTable();
+                table.Theme = XLTableTheme.TableStyleMedium9;
             }
         }
-    }
 
-    /// <summary>
-    /// Writes a generic sheet with a typed data table.
-    /// </summary>
-    /// <typeparam name="T">The type of objects in the collection (must have public properties).</typeparam>
-    /// <param name="workbook">The Excel workbook where the sheet will be added.</param>
-    /// <param name="sheetRegistry">Sheet name registry to avoid duplicates.</param>
-    /// <param name="logicalName">Logical sheet name (will be sanitized and truncated as needed).</param>
-    /// <param name="rows">Collection of objects to write as table rows.</param>
-    /// <remarks>
-    /// Uses reflection to get public properties of type T and create columns automatically.
-    /// The table is created at row 3 with bold headers and Excel table formatting.
-    /// </remarks>
-    private static void WriteTableSheet<T>(XLWorkbook workbook, SheetRegistry sheetRegistry, string logicalName, IReadOnlyCollection<T> rows)
-    {
-        var ws = workbook.Worksheets.Add(sheetRegistry.GetOrCreatePhysicalName(logicalName));
-        WriteBackToIndex(ws);
-        WriteRows(ws, 3, rows);
-    }
-
-    /// <summary>
-    /// Writes generic data rows to a sheet, using reflection to get columns.
-    /// </summary>
-    /// <typeparam name="T">The type of objects (must have public instance properties).</typeparam>
-    /// <param name="ws">The sheet where data will be written.</param>
-    /// <param name="startRow">The row where to start writing (1-based).</param>
-    /// <param name="rows">Collection of objects to write.</param>
-    /// <remarks>
-    /// <para>
-    /// This method:
-    /// <list type="number">
-    /// <item><description>Gets public properties of type T using reflection</description></item>
-    /// <item><description>Writes headers at <paramref name="startRow"/> with bold format</description></item>
-    /// <item><description>Writes each object as a row, using <see cref="SetCellValue"/> for appropriate formatting</description></item>
-    /// <item><description>Creates an Excel table over the used range</description></item>
-    /// <item><description>Adjusts column widths to content</description></item>
-    /// <item><description>Freezes the header row</description></item>
-    /// </list>
-    /// </para>
-    /// </remarks>
-    private static void WriteRows<T>(IXLWorksheet ws, int startRow, IReadOnlyCollection<T> rows)
-    {
-        var properties = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance);
-
-        if (properties.Length == 0)
+        /// <summary>
+        /// Writes a metric time series sheet with avg values every 15 minutes by component.
+        /// </summary>
+        private static void WriteMetricTimeSeriesSheet(
+            XLWorkbook workbook,
+            SheetRegistry sheetRegistry,
+            string componentType,
+            string metricName,
+            List<MetricReportRow> metrics,
+            MonitorExcelReport report)
         {
-            ws.Cell(startRow, 1).Value = "No columns.";
-            return;
+            var logicalName = $"TS_{componentType}_{metricName}";
+            var physicalName = sheetRegistry.GetOrCreatePhysicalName(logicalName);
+            var ws = workbook.Worksheets.Add(physicalName);
+            WriteBackToIndex(ws);
+
+            try
+            {
+                var row = 2;
+
+                // Title
+                ws.Cell(row, 1).Value = $"Time Series: {metricName} ({componentType}) - Avg every 15 min";
+                ws.Cell(row, 1).Style.Font.Bold = true;
+                ws.Cell(row, 1).Style.Font.FontSize = 16;
+                ws.Cell(row, 1).Style.Fill.BackgroundColor = XLColor.FromArgb(68, 114, 196);
+                ws.Cell(row, 1).Style.Font.FontColor = XLColor.White;
+                row += 2;
+
+                // Get time series data for this metric
+                var metricIds = metrics.Select(m => m.MetricId).ToHashSet();
+                var timeSeriesData = report.MetricData
+                    .Where(md => metricIds.Contains(md.MetricId) && md.ObservedAt.HasValue && md.AvgValue.HasValue)
+                    .OrderBy(md => md.ObservedAt)
+                    .ToList();
+
+                if (timeSeriesData.Count == 0)
+                {
+                    ws.Cell(row, 1).Value = "No time series data available";
+                    Log.Warning("No time series data found for metric '{MetricName}' in '{ComponentType}'", metricName, componentType);
+                    return;
+                }
+
+                // Deduplicate time series data by MetricId + ObservedAt (keep first occurrence)
+                var uniqueTimeSeriesData = timeSeriesData
+                    .GroupBy(md => new { md.MetricId, md.ObservedAt })
+                    .Select(g => g.First())
+                    .OrderBy(md => md.ObservedAt)
+                    .ToList();
+
+                if (uniqueTimeSeriesData.Count != timeSeriesData.Count)
+                {
+                    Log.Warning("Removed {Count} duplicate time series data point(s) for metric '{MetricName}' in '{ComponentType}'. Original: {Original}, Unique: {Unique}",
+                        timeSeriesData.Count - uniqueTimeSeriesData.Count, metricName, componentType, timeSeriesData.Count, uniqueTimeSeriesData.Count);
+                    timeSeriesData = uniqueTimeSeriesData;
+                }
+
+                // Pivot: rows = timestamps, columns = components
+                var timestamps = timeSeriesData.Select(md => md.ObservedAt!.Value).Distinct().OrderBy(t => t).ToList();
+
+                // Deduplicate metrics by MetricId
+                var uniqueMetrics = metrics
+                    .GroupBy(m => m.MetricId)
+                    .Select(g => g.First())
+                    .OrderBy(m => m.ComponentName)
+                    .ToList();
+
+                if (uniqueMetrics.Count != metrics.Count)
+                {
+                    Log.Warning("Removed {Count} duplicate metric(s) in time series for '{MetricName}' in '{ComponentType}'. Original: {Original}, Unique: {Unique}",
+                        metrics.Count - uniqueMetrics.Count, metricName, componentType, metrics.Count, uniqueMetrics.Count);
+                }
+
+                var components = uniqueMetrics;
+
+                // Deduplicate column names for components
+                var columnNames = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var finalComponentColumns = new List<(MetricReportRow Component, string ColumnName)>();
+
+                foreach (var component in components)
+                {
+                    var baseName = component.ComponentName ?? $"Component_{component.ComponentId}";
+
+                    if (columnNames.TryGetValue(baseName, out var value))
+                    {
+                        columnNames[baseName] = ++value;
+                        var uniqueName = $"{baseName}_{value}";
+                        finalComponentColumns.Add((component, uniqueName));
+                        Log.Warning("Duplicate component name '{ComponentName}' in time series for metric '{MetricName}', renamed to '{UniqueName}' in sheet '{SheetName}'", 
+                            baseName, metricName, uniqueName, ws.Name);
+                    }
+                    else
+                    {
+                        columnNames[baseName] = 0;
+                        finalComponentColumns.Add((component, baseName));
+                    }
+                }
+
+                // Write headers
+                ws.Cell(row, 1).Value = "ObservedAt";
+                ws.Cell(row, 1).Style.Font.Bold = true;
+                ws.Cell(row, 1).Style.Fill.BackgroundColor = XLColor.LightGray;
+
+                var col = 2;
+                foreach (var (_, columnName) in finalComponentColumns)
+                {
+                    ws.Cell(row, col).Value = columnName;
+                    ws.Cell(row, col).Style.Font.Bold = true;
+                    ws.Cell(row, col).Style.Fill.BackgroundColor = XLColor.LightGray;
+                    col++;
+                }
+
+                // Write data rows
+                var currentRow = row + 1;
+                foreach (var timestamp in timestamps)
+                {
+                    ws.Cell(currentRow, 1).Value = timestamp.UtcDateTime;
+                    ws.Cell(currentRow, 1).Style.DateFormat.Format = "yyyy-mm-dd hh:mm";
+
+                    col = 2;
+                    foreach (var (component, _) in finalComponentColumns)
+                    {
+                        var value = timeSeriesData
+                            .FirstOrDefault(md => md.MetricId == component.MetricId && md.ObservedAt == timestamp)
+                            ?.AvgValue;
+
+                        if (value.HasValue)
+                        {
+                            ws.Cell(currentRow, col).Value = value.Value;
+                            ws.Cell(currentRow, col).Style.NumberFormat.Format = "#,##0.00";
+                        }
+                        col++;
+                    }
+                    currentRow++;
+                }
+
+                            // Create table
+                        if (currentRow > row + 1 && finalComponentColumns.Count > 0)
+                        {
+                            var tableRange = ws.Range(row, 1, currentRow - 1, finalComponentColumns.Count + 1);
+                            var table = tableRange.CreateTable();
+                            table.Theme = XLTableTheme.TableStyleMedium9;
+
+                            // Add chart placeholder note
+                            var chartRow = currentRow + 2;
+                            AddChartPlaceholder(ws, chartRow, componentType, metricName, table);
+                        }
+
+                        ws.Columns().AdjustToContents();
+                        Log.Debug("Created time series sheet for '{MetricName}' in '{ComponentType}'", metricName, componentType);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Failed to write time series sheet for '{MetricName}' in '{ComponentType}'", metricName, componentType);
+                        ws.Cell(2, 1).Value = $"Error: {ex.Message}";
+                    }
+                }
+
+                /// <summary>
+                /// Adds a chart placeholder with instructions for creating a line chart.
+                /// </summary>
+                /// <param name="ws">The worksheet</param>
+                /// <param name="chartRow">Row where the chart note will be placed</param>
+                /// <param name="componentType">Component type</param>
+                /// <param name="metricName">Metric name</param>
+                /// <param name="table">The data table</param>
+                /// <remarks>
+                /// ClosedXML does not support native chart creation. This method adds formatted instructions
+                /// for users to manually create a line chart. For automated chart creation, consider using
+                /// DocumentFormat.OpenXml directly or EPPlus library as a post-processing step after saving
+                /// the file with ClosedXML.
+                /// </remarks>
+                private static void AddChartPlaceholder(IXLWorksheet ws, int chartRow, string componentType, string metricName, IXLTable table)
+                {
+                    try
+                    {
+                        Log.Debug("Adding chart placeholder for '{MetricName}' in '{ComponentType}'", metricName, componentType);
+
+                        // Title for chart section
+                        ws.Cell(chartRow, 1).Value = "📊 Chart Instructions";
+                        ws.Cell(chartRow, 1).Style.Font.Bold = true;
+                        ws.Cell(chartRow, 1).Style.Font.FontSize = 12;
+                        ws.Cell(chartRow, 1).Style.Fill.BackgroundColor = XLColor.LightYellow;
+                        chartRow++;
+
+                        // Instructions
+                        ws.Cell(chartRow, 1).Value = "To create a line chart for this time series data:";
+                        ws.Cell(chartRow, 1).Style.Font.Bold = true;
+                        chartRow++;
+
+                        var instructions = new[]
+                        {
+                            $"1. Select the table '{table.Name}' above",
+                            "2. Go to Insert > Charts > Line Chart",
+                            "3. Excel will automatically use the first column (ObservedAt) as X-axis",
+                            "4. All component columns will be plotted as separate lines",
+                            "5. Optionally, format the chart title, axis labels, and legend",
+                            "",
+                            "Alternative: Use a pivot chart for interactive filtering by component"
+                        };
+
+                        foreach (var instruction in instructions)
+                        {
+                            if (string.IsNullOrEmpty(instruction))
+                            {
+                                chartRow++;
+                                continue;
+                            }
+
+                            ws.Cell(chartRow, 1).Value = instruction;
+                            ws.Cell(chartRow, 1).Style.Font.FontSize = 10;
+
+                            if (instruction.StartsWith("Alternative:"))
+                            {
+                                ws.Cell(chartRow, 1).Style.Font.Italic = true;
+                                ws.Cell(chartRow, 1).Style.Font.FontColor = XLColor.DarkBlue;
+                            }
+
+                            chartRow++;
+                        }
+
+                        // Technical note
+                        chartRow++;
+                        ws.Cell(chartRow, 1).Value = "Note: Automated chart creation requires post-processing with DocumentFormat.OpenXml or EPPlus.";
+                        ws.Cell(chartRow, 1).Style.Font.FontSize = 9;
+                        ws.Cell(chartRow, 1).Style.Font.Italic = true;
+                        ws.Cell(chartRow, 1).Style.Font.FontColor = XLColor.Gray;
+
+                        Log.Debug("Successfully added chart placeholder for '{MetricName}' in '{ComponentType}'", metricName, componentType);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Failed to add chart placeholder for '{MetricName}' in '{ComponentType}'", metricName, componentType);
+                    }
+                }
+
+        /// <summary>
+        /// Writes the components summary table with only non-empty columns.
+        /// </summary>
+        private static int WriteComponentsSummaryTable(IXLWorksheet ws, int startRow, List<ComponentReportRow> components)
+        {
+            if (components.Count == 0)
+            {
+                ws.Cell(startRow, 1).Value = "No components found";
+                return startRow + 1;
+            }
+
+            try
+            {
+                // Deduplicate components by ComponentId
+                var uniqueComponents = components
+                    .GroupBy(c => c.ComponentId)
+                    .Select(g => g.First())
+                    .OrderBy(c => c.Name)
+                    .ToList();
+
+                if (uniqueComponents.Count != components.Count)
+                {
+                    Log.Warning("Removed {Count} duplicate component(s) in sheet '{SheetName}'. Original: {Original}, Unique: {Unique}",
+                        components.Count - uniqueComponents.Count, ws.Name, components.Count, uniqueComponents.Count);
+                }
+
+                // Get all properties (only declared in this class, not inherited)
+                var properties = typeof(ComponentReportRow).GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+
+                Log.Debug("Found {Count} properties in ComponentReportRow: {Properties}", 
+                    properties.Length, string.Join(", ", properties.Select(p => p.Name)));
+
+                // Filter properties that have at least one non-null, non-empty value
+                var nonEmptyProperties = properties
+                    .Where(p => uniqueComponents.Any(c =>
+                    {
+                        var value = p.GetValue(c);
+                        return value != null && 
+                               !(value is string str && string.IsNullOrWhiteSpace(str)) &&
+                               !(value is int intVal && intVal == 0 && p.Name.EndsWith("Count"));
+                    }))
+                    .ToList();
+
+                Log.Debug("Filtered to {Count} non-empty properties: {Properties}", 
+                    nonEmptyProperties.Count, string.Join(", ", nonEmptyProperties.Select(p => p.Name)));
+
+                // Create unique column names (in case of duplicates)
+                var columnNames = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var finalColumnNames = new List<(PropertyInfo Property, string ColumnName)>();
+
+                foreach (var prop in nonEmptyProperties)
+                {
+                    var baseName = prop.Name;
+
+                    if (columnNames.TryGetValue(baseName, out var value))
+                    {
+                        columnNames[baseName] = ++value;
+                        var uniqueName = $"{baseName}_{value}";
+                        finalColumnNames.Add((prop, uniqueName));
+                        Log.Warning("Duplicate column name detected: '{ColumnName}', renamed to '{UniqueName}' in sheet '{SheetName}'", 
+                            baseName, uniqueName, ws.Name);
+                    }
+                    else
+                    {
+                        columnNames[baseName] = 0;
+                        finalColumnNames.Add((prop, baseName));
+                    }
+                }
+
+                if (finalColumnNames.Count == 0)
+                {
+                    ws.Cell(startRow, 1).Value = "No displayable columns found";
+                    Log.Warning("No displayable columns found for components in sheet '{SheetName}'", ws.Name);
+                    return startRow + 1;
+                }
+
+                Log.Debug("Final column names for sheet '{SheetName}': {Columns}", 
+                    ws.Name, string.Join(", ", finalColumnNames.Select(c => c.ColumnName)));
+
+                // Write headers
+                var col = 1;
+                    foreach (var (_, columnName) in finalColumnNames)
+                {
+                    ws.Cell(startRow, col).Value = columnName;
+                    ws.Cell(startRow, col).Style.Font.Bold = true;
+                    ws.Cell(startRow, col).Style.Fill.BackgroundColor = XLColor.LightGray;
+                    col++;
+                }
+
+                // Write data rows (using deduplicated components)
+                var currentRow = startRow + 1;
+                foreach (var component in uniqueComponents)
+                {
+                    col = 1;
+                    foreach (var (property, _) in finalColumnNames)
+                    {
+                        try
+                        {
+                            var value = property.GetValue(component);
+                            SetCellValue(ws.Cell(currentRow, col), value);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warning(ex, "Failed to get value for property '{Property}' on component '{Component}'", 
+                                property.Name, component.Name ?? component.ComponentId.ToString());
+                            ws.Cell(currentRow, col).Value = "#ERROR#";
+                        }
+                        col++;
+                    }
+                    currentRow++;
+                }
+
+                // Create table
+                if (currentRow > startRow + 1 && finalColumnNames.Count > 0)
+                {
+                    try
+                    {
+                        var tableRange = ws.Range(startRow, 1, currentRow - 1, finalColumnNames.Count);
+                        var table = tableRange.CreateTable();
+                        table.Theme = XLTableTheme.TableStyleMedium9;
+
+                        Log.Debug("Created table in sheet '{SheetName}' with {Rows} rows and {Columns} columns", 
+                            ws.Name, currentRow - startRow - 1, finalColumnNames.Count);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Failed to create table in sheet '{SheetName}' with range ({StartRow},{StartCol}) to ({EndRow},{EndCol})", 
+                            ws.Name, startRow, 1, currentRow - 1, finalColumnNames.Count);
+                        throw;
+                    }
+                }
+
+                ws.SheetView.FreezeRows(startRow);
+
+                return currentRow;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to write components summary table in sheet '{SheetName}'", ws.Name);
+                ws.Cell(startRow, 1).Value = $"Error creating table: {ex.Message}";
+                return startRow + 2;
+            }
         }
 
-        var headerRow = startRow;
-        for (var col = 0; col < properties.Length; col++)
+        /// <summary>
+        /// Writes the aggregated metrics table with Min, Max, Count, Avg, StdDev, P95.
+        /// </summary>
+        private static int WriteAggregatedMetricsTable(IXLWorksheet ws, int startRow, List<MetricReportRow> metrics, List<MetricDataReportRow> metricData)
         {
-            ws.Cell(headerRow, col + 1).Value = properties[col].Name;
-            ws.Cell(headerRow, col + 1).Style.Font.Bold = true;
+            if (metrics.Count == 0)
+            {
+                ws.Cell(startRow, 1).Value = "No metrics found";
+                return startRow + 1;
+            }
+
+            try
+            {
+                Log.Debug("Writing aggregated metrics table in sheet '{SheetName}' starting at row {Row}", ws.Name, startRow);
+
+                // Group metrics by metric name and aggregate statistics
+                var aggregatedMetrics = metrics
+                    .GroupBy(m => m.MetricName ?? "Unknown")
+                    .Select(g =>
+                    {
+                        var metricIds = g.Select(m => m.MetricId).ToList();
+                        var dataPoints = metricData.Where(md => metricIds.Contains(md.MetricId)).ToList();
+
+                        var minValue = dataPoints.Any(d => d.MinValue.HasValue) ? dataPoints.Where(d => d.MinValue.HasValue).Min(d => d.MinValue!.Value) : (double?)null;
+                        var maxValue = dataPoints.Any(d => d.MaxValue.HasValue) ? dataPoints.Where(d => d.MaxValue.HasValue).Max(d => d.MaxValue!.Value) : (double?)null;
+                        var count = dataPoints.Sum(d => d.CountValue ?? 0);
+                        var avgValue = dataPoints.Where(d => d.AvgValue.HasValue).Any() ? dataPoints.Where(d => d.AvgValue.HasValue).Average(d => d.AvgValue!.Value) : (double?)null;
+                        var stdDevValue = dataPoints.Where(d => d.StdDevValue.HasValue).Any() ? dataPoints.Where(d => d.StdDevValue.HasValue).Average(d => d.StdDevValue!.Value) : (double?)null;
+
+                        // P95 calculation using exact z-score for normal distribution with max constraint
+                        var p95Value = StatisticsCalculator.CalculatePercentile95(avgValue, stdDevValue, maxValue);
+
+                        return new
+                        {
+                            MetricName = g.Key,
+                            Unit = g.First().Unit ?? "",
+                            MinValue = minValue,
+                            MaxValue = maxValue,
+                            Count = count,
+                            AvgValue = avgValue,
+                            StdDevValue = stdDevValue,
+                            P95Value = p95Value
+                        };
+                    })
+                    .OrderBy(m => m.MetricName)
+                    .ToList();
+
+                Log.Debug("Aggregated {Count} metrics in sheet '{SheetName}'", aggregatedMetrics.Count, ws.Name);
+
+                // Write headers
+                var headers = new[] { "Metric Name", "Unit", "Min", "Max", "Count", "Avg", "StdDev", "P95" };
+                for (var i = 0; i < headers.Length; i++)
+                {
+                    ws.Cell(startRow, i + 1).Value = headers[i];
+                    ws.Cell(startRow, i + 1).Style.Font.Bold = true;
+                    ws.Cell(startRow, i + 1).Style.Fill.BackgroundColor = XLColor.LightGray;
+                }
+
+                // Write data rows
+                var currentRow = startRow + 1;
+                foreach (var metric in aggregatedMetrics)
+                {
+                    ws.Cell(currentRow, 1).Value = metric.MetricName;
+                    ws.Cell(currentRow, 2).Value = metric.Unit;
+                    SetCellValue(ws.Cell(currentRow, 3), metric.MinValue);
+                    SetCellValue(ws.Cell(currentRow, 4), metric.MaxValue);
+                    ws.Cell(currentRow, 5).Value = metric.Count;
+                    SetCellValue(ws.Cell(currentRow, 6), metric.AvgValue);
+                    SetCellValue(ws.Cell(currentRow, 7), metric.StdDevValue);
+                    SetCellValue(ws.Cell(currentRow, 8), metric.P95Value);
+
+                    // Format numeric cells
+                    for (var col = 3; col <= 8; col++)
+                    {
+                        if (ws.Cell(currentRow, col).Value.IsNumber)
+                        {
+                            ws.Cell(currentRow, col).Style.NumberFormat.Format = "#,##0.00";
+                        }
+                    }
+
+                    currentRow++;
+                }
+
+                // Create table
+                if (currentRow > startRow + 1)
+                {
+                    try
+                    {
+                        var tableRange = ws.Range(startRow, 1, currentRow - 1, headers.Length);
+                        var table = tableRange.CreateTable();
+                        table.Theme = XLTableTheme.TableStyleMedium9;
+
+                        Log.Debug("Created aggregated metrics table in sheet '{SheetName}' with {Rows} rows", 
+                            ws.Name, currentRow - startRow - 1);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Failed to create aggregated metrics table in sheet '{SheetName}'", ws.Name);
+                        throw;
+                    }
+                }
+
+                return currentRow;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to write aggregated metrics table in sheet '{SheetName}'", ws.Name);
+                ws.Cell(startRow, 1).Value = $"Error creating metrics table: {ex.Message}";
+                return startRow + 2;
+            }
         }
 
-        var row = headerRow + 1;
-        foreach (var item in rows)
+        /// <summary>
+        /// Writes time series data and creates a line chart with Top 20 metrics.
+        /// </summary>
+        private static void WriteTimeSeriesWithChart(IXLWorksheet ws, int startRow, List<MetricReportRow> metrics, List<MetricDataReportRow> metricData, string componentType)
         {
+            if (metrics.Count == 0 || metricData.Count == 0)
+            {
+                ws.Cell(startRow, 1).Value = "No time series data available";
+                return;
+            }
+
+            try
+            {
+                Log.Debug("Writing time series in sheet '{SheetName}' for component type '{ComponentType}' starting at row {Row}", 
+                    ws.Name, componentType, startRow);
+
+                var metricIds = metrics.Select(m => m.MetricId).ToHashSet();
+                var timeSeriesData = metricData
+                    .Where(md => metricIds.Contains(md.MetricId) && md.ObservedAt.HasValue && md.AvgValue.HasValue)
+                    .OrderBy(md => md.ObservedAt)
+                    .ToList();
+
+                if (timeSeriesData.Count == 0)
+                {
+                    ws.Cell(startRow, 1).Value = "No time series data available";
+                    Log.Warning("No time series data found for component type '{ComponentType}' in sheet '{SheetName}'", 
+                        componentType, ws.Name);
+                    return;
+                }
+
+                Log.Debug("Found {Count} time series data points for component type '{ComponentType}'", 
+                    timeSeriesData.Count, componentType);
+
+                // Get Top 20 metrics by average value
+                var top20Metrics = timeSeriesData
+                    .GroupBy(md => md.MetricId)
+                    .Select(g => new
+                    {
+                        MetricId = g.Key,
+                        MetricName = g.First().MetricName ?? $"Metric_{g.Key}",
+                        AvgOfAvg = g.Average(d => d.AvgValue!.Value)
+                    })
+                    .OrderByDescending(m => m.AvgOfAvg)
+                    .Take(20)
+                    .ToList();
+
+                Log.Debug("Selected Top {Count} metrics for time series chart in sheet '{SheetName}'", 
+                    top20Metrics.Count, ws.Name);
+
+                var top20MetricIds = top20Metrics.Select(m => m.MetricId).ToHashSet();
+
+                // Pivot time series: rows = timestamps, columns = metrics
+                var timestamps = timeSeriesData
+                    .Where(md => top20MetricIds.Contains(md.MetricId))
+                    .Select(md => md.ObservedAt!.Value)
+                    .Distinct()
+                    .OrderBy(t => t)
+                    .ToList();
+
+                Log.Debug("Time series has {Count} unique timestamps", timestamps.Count);
+
+                // Deduplicate column names for metrics
+                var columnNames = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var finalMetricColumns = new List<(int MetricId, string MetricName, string ColumnName)>();
+
+                foreach (var metric in top20Metrics)
+                {
+                    var baseName = metric.MetricName;
+
+                    if (columnNames.TryGetValue(baseName, out var value))
+                    {
+                        columnNames[baseName] = ++value;
+                        var uniqueName = $"{baseName}_{value}";
+                        finalMetricColumns.Add((metric.MetricId, metric.MetricName, uniqueName));
+                        Log.Warning("Duplicate metric name '{MetricName}' in time series, renamed to '{UniqueName}' in sheet '{SheetName}'", 
+                            baseName, uniqueName, ws.Name);
+                    }
+                    else
+                    {
+                        columnNames[baseName] = 0;
+                        finalMetricColumns.Add((metric.MetricId, metric.MetricName, baseName));
+                    }
+                }
+
+                // Write headers
+                ws.Cell(startRow, 1).Value = "ObservedAt";
+                ws.Cell(startRow, 1).Style.Font.Bold = true;
+                ws.Cell(startRow, 1).Style.Fill.BackgroundColor = XLColor.LightGray;
+
+                var col = 2;
+                foreach (var (_, _, columnName) in finalMetricColumns)
+                {
+                    ws.Cell(startRow, col).Value = columnName;
+                    ws.Cell(startRow, col).Style.Font.Bold = true;
+                    ws.Cell(startRow, col).Style.Fill.BackgroundColor = XLColor.LightGray;
+                    col++;
+                }
+
+                // Write data rows
+                var currentRow = startRow + 1;
+                foreach (var timestamp in timestamps)
+                {
+                    ws.Cell(currentRow, 1).Value = timestamp.UtcDateTime;
+                    ws.Cell(currentRow, 1).Style.DateFormat.Format = "yyyy-mm-dd hh:mm";
+
+                    col = 2;
+                    foreach (var (metricId, _, _) in finalMetricColumns)
+                    {
+                        var value = timeSeriesData
+                            .FirstOrDefault(md => md.MetricId == metricId && md.ObservedAt == timestamp)
+                            ?.AvgValue;
+
+                        if (value.HasValue)
+                        {
+                            ws.Cell(currentRow, col).Value = value.Value;
+                            ws.Cell(currentRow, col).Style.NumberFormat.Format = "#,##0.00";
+                        }
+                        col++;
+                    }
+                    currentRow++;
+                }
+
+                // Create table
+                if (currentRow > startRow + 1 && finalMetricColumns.Count > 0)
+                {
+                    try
+                    {
+                        var dataRange = ws.Range(startRow, 1, currentRow - 1, finalMetricColumns.Count + 1);
+                        var table = dataRange.CreateTable();
+                        table.Theme = XLTableTheme.TableStyleMedium9;
+
+                        Log.Debug("Created time series table in sheet '{SheetName}' with {Rows} rows and {Columns} columns", 
+                            ws.Name, currentRow - startRow - 1, finalMetricColumns.Count + 1);
+
+                        // Note: Chart creation with ClosedXML requires manual creation in Excel
+                        // or use of OpenXML directly. The data table is formatted and ready for charting.
+                        // Users can manually create a line chart from the table data:
+                        // 1. Select the data range
+                        // 2. Insert -> Line Chart
+                        // 3. Set X-axis to ObservedAt column
+                        // 4. Set Y-axis to metric values
+
+                        // Alternative: Add a note cell for users
+                        var noteRow = currentRow + 1;
+                        ws.Cell(noteRow, 1).Value = "Chart Note: Select the table above and insert a Line Chart to visualize the time series data.";
+                        ws.Cell(noteRow, 1).Style.Font.Italic = true;
+                        ws.Cell(noteRow, 1).Style.Font.FontColor = XLColor.DarkBlue;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Failed to create time series table in sheet '{SheetName}'", ws.Name);
+                        throw;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to write time series in sheet '{SheetName}' for component type '{ComponentType}'", 
+                    ws.Name, componentType);
+                ws.Cell(startRow, 1).Value = $"Error creating time series: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Writes metric sheets grouped by component type and metric name.
+        /// </summary>
+        /// <param name="workbook">The Excel workbook where sheets will be added.</param>
+        /// <param name="sheetRegistry">Sheet name registry to manage duplicates and truncation.</param>
+        /// <param name="report">The report with metrics and data to write.</param>
+        /// <remarks>
+        /// <para>
+        /// Creates one sheet per unique ComponentType + MetricName combination.
+        /// </para>
+        /// <para>
+        /// <b>Special grouping for host:</b> Process metrics are grouped with wildcards:
+        /// <list type="bullet">
+        /// <item><description>Process CPU* - All "Process CPU - [process]" metrics</description></item>
+        /// <item><description>Process Instances* - All "Process Instances - [process]" metrics</description></item>
+        /// <item><description>Process Memory* - All "Process Memory - [process]" metrics</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// Each sheet contains:
+        /// <list type="number">
+        /// <item><description>Header: Component Type, Metric Name, Unit</description></item>
+        /// <item><description>Consolidated statistics table: Combines metric configuration (thresholds, alerting) with aggregated statistics from the query period (min, max, avg, stddev, percentile 95, sum, count)</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// Sheet name: {ComponentType}{MetricName} without spaces (e.g., "hostCPUUtilized", "hostProcessCPU_")
+        /// </para>
+        /// </remarks>
+        private static void WriteComponentMetricSheets(XLWorkbook workbook, SheetRegistry sheetRegistry, MonitorExcelReport report)
+        {
+            // Group by ComponentType + MetricName (with special grouping for host process metrics)
+            var metricsByTypeGroups = report.Metrics
+                .GroupBy(m =>
+                {
+                    var componentType = m.ComponentType ?? "Unknown";
+                    var metricName = m.MetricName ?? $"Metric_{m.MetricId}";
+                    var unit = m.Unit;
+
+                    // For host components, group process metrics by wildcard
+                    if (componentType.Equals("host", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if(metricName.StartsWith("Process CPU", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return new { ComponentType = componentType, MetricName = "Process CPU*", Unit = "varies" };
+                        }
+
+                        if (metricName.StartsWith("Process Instances", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return new { ComponentType = componentType, MetricName = "Process Instances*", Unit = "varies" };
+                        }
+
+                        if (metricName.StartsWith("Process Memory", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return new { ComponentType = componentType, MetricName = "Process Memory*", Unit = "varies" };
+                        }
+                    }
+
+                    return new { ComponentType = componentType, MetricName = metricName, Unit = unit ?? string.Empty };
+                })
+                .OrderBy(g => g.Key.ComponentType)
+                .ThenBy(g => g.Key.MetricName);
+
+            foreach (var group in metricsByTypeGroups)
+            {
+                var logicalName = SheetRegistry.BuildMetricByTypeSheetName(group.Key.ComponentType, group.Key.MetricName);
+                var physicalName = sheetRegistry.GetOrCreatePhysicalName(logicalName);
+                var ws = workbook.Worksheets.Add(physicalName);
+                WriteBackToIndex(ws);
+
+                // Header with component type and metric information
+                ws.Cell(2, 1).Value = "Component Type";
+                ws.Cell(2, 2).Value = group.Key.ComponentType;
+                ws.Cell(2, 1).Style.Font.Bold = true;
+
+                ws.Cell(3, 1).Value = "Metric";
+                ws.Cell(3, 2).Value = group.Key.MetricName;
+                ws.Cell(3, 1).Style.Font.Bold = true;
+
+                ws.Cell(4, 1).Value = "Unit";
+                ws.Cell(4, 2).Value = group.Key.Unit;
+                ws.Cell(4, 1).Style.Font.Bold = true;
+
+                // Create consolidated view: metric configuration + statistics from the query period
+                var consolidatedData = group
+                    .Select(metric =>
+                    {
+                        // Find the statistics for this metric (if available)
+                        var stats = report.MetricData.FirstOrDefault(md => md.MetricId == metric.MetricId);
+
+                        return new
+                        {
+                            metric.CollectionName,
+                            metric.ComponentId,
+                            metric.ComponentName,
+                            metric.ComponentType,
+                            metric.ComponentSubtype,
+                            metric.MetricId,
+                            metric.MetricName,
+                            metric.Unit,
+                            metric.Status,
+                            metric.IsAlertingEnabled,
+                            metric.Aggregation,
+                            metric.Operator,
+                            metric.InfoThreshold,
+                            metric.WarningThreshold,
+                            metric.CriticalThreshold,
+                            // Statistics from the query period
+                            stats?.MinValue,
+                            stats?.MaxValue,
+                            stats?.AvgValue,
+                            stats?.StdDevValue,
+                            stats?.Percentile95Value,
+                            stats?.SumValue,
+                            stats?.CountValue
+                        };
+                    })
+                    .OrderBy(m => m.ComponentName)
+                    .ThenBy(m => m.MetricName)
+                    .ToList();
+
+                // Write consolidated statistics table
+                if (consolidatedData.Count != 0)
+                {
+                    WriteRows(ws, 6, consolidatedData);
+                }
+                else
+                {
+                    ws.Cell(6, 1).Value = "No metrics available";
+                }
+            }
+        }
+
+        /// <summary>
+        /// Writes a generic sheet with a typed data table.
+        /// </summary>
+        /// <typeparam name="T">The type of objects in the collection (must have public properties).</typeparam>
+        /// <param name="workbook">The Excel workbook where the sheet will be added.</param>
+        /// <param name="sheetRegistry">Sheet name registry to avoid duplicates.</param>
+        /// <param name="logicalName">Logical sheet name (will be sanitized and truncated as needed).</param>
+        /// <param name="rows">Collection of objects to write as table rows.</param>
+        /// <remarks>
+        /// Uses reflection to get public properties of type T and create columns automatically.
+        /// The table is created at row 3 with bold headers and Excel table formatting.
+        /// Automatically deduplicates rows based on unique key properties (Id, AlertId, etc.).
+        /// </remarks>
+        private static void WriteTableSheet<T>(XLWorkbook workbook, SheetRegistry sheetRegistry, string logicalName, IReadOnlyCollection<T> rows)
+        {
+            var ws = workbook.Worksheets.Add(sheetRegistry.GetOrCreatePhysicalName(logicalName));
+            WriteBackToIndex(ws);
+
+            // Deduplicate rows based on available unique key properties
+            var uniqueRows = DeduplicateRows(rows, logicalName);
+            WriteRows(ws, 3, uniqueRows);
+        }
+
+        /// <summary>
+        /// Deduplicates a collection of rows based on available unique key properties.
+        /// </summary>
+        /// <typeparam name="T">The type of objects in the collection.</typeparam>
+        /// <param name="rows">Collection of objects to deduplicate.</param>
+        /// <param name="contextName">Context name for logging (e.g., sheet name).</param>
+        /// <returns>Deduplicated collection of rows.</returns>
+        private static IReadOnlyCollection<T> DeduplicateRows<T>(IReadOnlyCollection<T> rows, string contextName)
+        {
+            if (rows.Count == 0)
+            {
+                return rows;
+            }
+
+            var type = typeof(T);
+            var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+            // Find the first available unique key property
+            var keyProperty = properties.FirstOrDefault(p => 
+                p.Name.Equals("Id", StringComparison.OrdinalIgnoreCase) ||
+                p.Name.Equals($"{type.Name}Id", StringComparison.OrdinalIgnoreCase) ||
+                p.Name.Equals("AlertId", StringComparison.OrdinalIgnoreCase) ||
+                p.Name.Equals("MetricId", StringComparison.OrdinalIgnoreCase) ||
+                p.Name.Equals("ComponentId", StringComparison.OrdinalIgnoreCase));
+
+            if (keyProperty == null)
+            {
+                // No unique key found, return all rows with a warning
+                Log.Debug("No unique key property found for type '{TypeName}' in '{ContextName}'. Skipping deduplication.",
+                    type.Name, contextName);
+                return rows;
+            }
+
+            // Deduplicate by the key property
+            var uniqueRows = rows
+                .GroupBy(r => keyProperty.GetValue(r))
+                .Select(g => g.First())
+                .ToList();
+
+            if (uniqueRows.Count != rows.Count)
+            {
+                Log.Warning("Removed {Count} duplicate row(s) in '{ContextName}' based on property '{KeyProperty}'. Original: {Original}, Unique: {Unique}",
+                    rows.Count - uniqueRows.Count, contextName, keyProperty.Name, rows.Count, uniqueRows.Count);
+            }
+
+            return uniqueRows;
+        }
+
+        /// <summary>
+        /// Writes generic data rows to a sheet, using reflection to get columns.
+        /// </summary>
+        /// <typeparam name="T">The type of objects (must have public instance properties).</typeparam>
+        /// <param name="ws">The sheet where data will be written.</param>
+        /// <param name="startRow">The row where to start writing (1-based).</param>
+        /// <param name="rows">Collection of objects to write.</param>
+        /// <remarks>
+        /// <para>
+        /// This method:
+        /// <list type="number">
+        /// <item><description>Gets public properties of type T using reflection</description></item>
+        /// <item><description>Writes headers at <paramref name="startRow"/> with bold format</description></item>
+        /// <item><description>Writes each object as a row, using <see cref="SetCellValue"/> for appropriate formatting</description></item>
+        /// <item><description>Creates an Excel table over the used range</description></item>
+        /// <item><description>Adjusts column widths to content</description></item>
+        /// <item><description>Freezes the header row</description></item>
+        /// </list>
+        /// </para>
+        /// </remarks>
+        private static void WriteRows<T>(IXLWorksheet ws, int startRow, IReadOnlyCollection<T> rows)
+        {
+            var properties = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+            if (properties.Length == 0)
+            {
+                ws.Cell(startRow, 1).Value = "No columns.";
+                return;
+            }
+
+            var headerRow = startRow;
             for (var col = 0; col < properties.Length; col++)
             {
-                var value = properties[col].GetValue(item);
-                SetCellValue(ws.Cell(row, col + 1), value);
+                ws.Cell(headerRow, col + 1).Value = properties[col].Name;
+                ws.Cell(headerRow, col + 1).Style.Font.Bold = true;
             }
-            row++;
-        }
 
-        var usedRange = ws.Range(headerRow, 1, Math.Max(row - 1, headerRow), properties.Length);
-        usedRange.CreateTable();
-        ws.Columns().AdjustToContents();
-        ws.SheetView.FreezeRows(headerRow);
-    }
-
-    /// <summary>
-    /// Writes a "Back to index" hyperlink in cell A1 of a sheet.
-    /// </summary>
-    /// <param name="ws">The sheet where the link will be written.</param>
-    /// <remarks>
-    /// Creates a clickable link to cell A1 of the "Summary" sheet for easy navigation.
-    /// </remarks>
-    private static void WriteBackToIndex(IXLWorksheet ws)
-    {
-        ws.Cell(1, 1).FormulaA1 = HyperlinkFormula("Summary", "Back to index");
-        ws.Cell(1, 1).Style.Font.Bold = true;
-    }
-
-    /// <summary>
-    /// Writes a hyperlink to another sheet with a label and description.
-    /// </summary>
-    /// <param name="ws">The sheet where the link will be written.</param>
-    /// <param name="row">The row where to write (1-based).</param>
-    /// <param name="targetSheet">Physical name of the target sheet.</param>
-    /// <param name="label">Text to display in the hyperlink.</param>
-    /// <param name="description">Description to display in column B.</param>
-    /// <remarks>
-    /// Creates a hyperlink in column A and puts the description in column B of the same row.
-    /// </remarks>
-    private static void WriteIndexLink(IXLWorksheet ws, int row, string targetSheet, string label, string description)
-    {
-        ws.Cell(row, 1).FormulaA1 = HyperlinkFormula(targetSheet, label);
-        ws.Cell(row, 2).Value = description;
-    }
-
-    /// <summary>
-    /// Creates an Excel HYPERLINK formula to navigate to another sheet.
-    /// </summary>
-    /// <param name="sheetName">Target sheet name (will be escaped appropriately).</param>
-    /// <param name="text">Text to display in the link (will be escaped appropriately).</param>
-    /// <returns>A string with the HYPERLINK formula ready to use in Excel.</returns>
-    /// <remarks>
-    /// Escapes single quotes in sheet name and double quotes in text according to Excel rules.
-    /// The link always points to cell A1 of the target sheet.
-    /// </remarks>
-    /// <example>
-    /// <code>
-    /// var formula = HyperlinkFormula("Summary", "Go to summary");
-    /// // Returns: HYPERLINK("#'Summary'!A1","Go to summary")
-    /// </code>
-    /// </example>
-    private static string HyperlinkFormula(string sheetName, string text)
-    {
-        var escapedSheet = sheetName.Replace("'", "''");
-        var escapedText = text.Replace("\"", "\"\"");
-        return $"HYPERLINK(\"#'{escapedSheet}'!A1\",\"{escapedText}\")";
-    }
-
-    /// <summary>
-    /// Sets the value of an Excel cell with appropriate formatting based on data type.
-    /// </summary>
-    /// <param name="cell">The cell where the value will be set.</param>
-    /// <param name="value">The value to write (can be null).</param>
-    /// <remarks>
-    /// <para>
-    /// Handles the following types with special formatting:
-    /// </para>
-    /// <list type="bullet">
-    /// <item><description><c>null</c> → Empty string</description></item>
-    /// <item><description><see cref="DateTimeOffset"/> and <see cref="DateTime"/> → Format "yyyy-mm-dd hh:mm:ss"</description></item>
-    /// <item><description>Numeric types (<c>int</c>, <c>long</c>, <c>double</c>, <c>decimal</c>, <c>float</c>) → Direct numeric value</description></item>
-    /// <item><description><c>bool</c> → Boolean value</description></item>
-    /// <item><description>Others → String conversion with <c>ToString()</c></description></item>
-    /// </list>
-    /// </remarks>
-    private static void SetCellValue(IXLCell cell, object? value)
-    {
-        switch (value)
-        {
-            case null:
-                cell.Value = string.Empty;
-                break;
-            case DateTimeOffset dateTimeOffset:
-                cell.Value = dateTimeOffset.UtcDateTime;
-                cell.Style.DateFormat.Format = "yyyy-mm-dd hh:mm:ss";
-                break;
-            case DateTime dateTime:
-                cell.Value = dateTime;
-                cell.Style.DateFormat.Format = "yyyy-mm-dd hh:mm:ss";
-                break;
-            case bool boolean:
-                cell.Value = boolean;
-                break;
-            case int integer:
-                cell.Value = integer;
-                break;
-            case long longValue:
-                cell.Value = longValue;
-                break;
-            case double doubleValue:
-                cell.Value = doubleValue;
-                break;
-            case decimal decimalValue:
-                cell.Value = decimalValue;
-                break;
-            case float floatValue:
-                cell.Value = floatValue;
-                break;
-            default:
-                cell.Value = value.ToString() ?? string.Empty;
-                break;
-        }
-    }
-
-    /// <summary>
-    /// Sheet name registry to manage duplicates and name truncation.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Excel has a 31-character limit for sheet names and doesn't allow duplicates.
-    /// This class manages the conversion of logical names (can be long and descriptive)
-    /// to physical names (sanitized, truncated, and unique).
-    /// </para>
-    /// <para>
-    /// Features:
-    /// <list type="bullet">
-    /// <item><description>Sanitizes invalid characters (/, \, ?, *, [, ], :)</description></item>
-    /// <item><description>Truncates names to 31 characters</description></item>
-    /// <item><description>Adds suffixes _1, _2, etc. to avoid duplicates</description></item>
-    /// <item><description>Maintains mapping between logical and physical names</description></item>
-    /// </list>
-    /// </para>
-    /// </remarks>
-    private sealed class SheetRegistry
-    {
-        private readonly XLWorkbook _workbook;
-        private readonly Dictionary<string, string> _logicalToPhysical = new(StringComparer.OrdinalIgnoreCase);
-        private readonly HashSet<string> _usedPhysicalNames = new(StringComparer.OrdinalIgnoreCase);
-
-        /// <summary>
-        /// Initializes a new instance of the sheet registry.
-        /// </summary>
-        /// <param name="workbook">The Excel workbook to verify existing names.</param>
-        public SheetRegistry(XLWorkbook workbook)
-        {
-            _workbook = workbook;
-        }
-
-        /// <summary>
-        /// Registers an explicit mapping between logical and physical name.
-        /// </summary>
-        /// <param name="logicalName">Logical/descriptive sheet name.</param>
-        /// <param name="physicalName">Physical name that will appear in Excel.</param>
-        /// <remarks>
-        /// Useful for standard sheets like "Summary", "Inputs", etc. that always have the same name.
-        /// </remarks>
-        public void Register(string logicalName, string physicalName)
-        {
-            _logicalToPhysical[logicalName] = physicalName;
-            _usedPhysicalNames.Add(physicalName);
-        }
-
-        /// <summary>
-        /// Gets or creates a unique physical name for a given logical name.
-        /// </summary>
-        /// <param name="logicalName">Logical/descriptive sheet name.</param>
-        /// <returns>Sanitized, truncated, and guaranteed unique physical name.</returns>
-        /// <remarks>
-        /// <para>
-        /// If the logical name already has a mapping, returns it.
-        /// If not, generates a new physical name:
-        /// <list type="number">
-        /// <item><description>Sanitizes invalid characters</description></item>
-        /// <item><description>Truncates to 31 characters</description></item>
-        /// <item><description>If conflict exists, adds _1, _2, etc.</description></item>
-        /// <item><description>Saves the mapping for future queries</description></item>
-        /// </list>
-        /// </para>
-        /// </remarks>
-        public string GetOrCreatePhysicalName(string logicalName)
-        {
-            if (_logicalToPhysical.TryGetValue(logicalName, out var existing))
-                return existing;
-
-            var baseName = SanitizeSheetName(logicalName);
-            var candidate = baseName;
-            var index = 1;
-            while (_usedPhysicalNames.Contains(candidate) || _workbook.Worksheets.Any(w => w.Name.Equals(candidate, StringComparison.OrdinalIgnoreCase)))
+            var row = headerRow + 1;
+            foreach (var item in rows)
             {
-                var suffix = $"_{index++}";
-                var prefixLength = Math.Min(baseName.Length, 31 - suffix.Length);
-                candidate = baseName[..prefixLength] + suffix;
+                for (var col = 0; col < properties.Length; col++)
+                {
+                    var value = properties[col].GetValue(item);
+                    SetCellValue(ws.Cell(row, col + 1), value);
+                }
+                row++;
             }
 
-            _logicalToPhysical[logicalName] = candidate;
-            _usedPhysicalNames.Add(candidate);
-            return candidate;
+            var usedRange = ws.Range(headerRow, 1, Math.Max(row - 1, headerRow), properties.Length);
+            usedRange.CreateTable();
+            ws.Columns().AdjustToContents();
+            ws.SheetView.FreezeRows(headerRow);
         }
 
         /// <summary>
-        /// Builds a sheet name for collections (format: COL_{collection}_{type}).
+        /// Writes a "Back to index" hyperlink in cell A1 of a sheet.
         /// </summary>
-        /// <param name="collectionName">Collection name.</param>
-        /// <param name="componentType">Component type.</param>
-        /// <returns>Logical name for the collection sheet.</returns>
+        /// <param name="ws">The sheet where the link will be written.</param>
         /// <remarks>
-        /// Legacy method kept for compatibility. No longer used in current structure.
+        /// Creates a clickable link to cell A1 of the "Summary" sheet for easy navigation.
         /// </remarks>
-        public static string BuildCollectionSheetName(string collectionName, string componentType)
-            => $"COL_{collectionName}_{componentType}";
-
-        /// <summary>
-        /// Builds a sheet name for individual metrics (format: MET_{metric}).
-        /// </summary>
-        /// <param name="metricName">Metric name.</param>
-        /// <returns>Logical name for the metric sheet.</returns>
-        /// <remarks>
-        /// Legacy method kept for compatibility. No longer used in current structure.
-        /// </remarks>
-        public static string BuildMetricSheetName(string metricName)
-            => $"MET_{metricName}";
-
-        /// <summary>
-        /// Builds a sheet name for component-metric (format: {component}_{metric}).
-        /// </summary>
-        /// <param name="componentName">Component name.</param>
-        /// <param name="metricName">Metric name.</param>
-        /// <returns>Sanitized logical name for the sheet (not truncated).</returns>
-        /// <remarks>
-        /// Legacy method kept for compatibility. No longer used in current structure.
-        /// </remarks>
-        public static string BuildComponentMetricSheetName(string componentName, string metricName)
+        private static void WriteBackToIndex(IXLWorksheet ws)
         {
-            // Don't truncate here - let GetOrCreatePhysicalName handle truncation AND deduplication
-            var sanitizedComponent = SanitizeSheetNameStatic(componentName);
-            var sanitizedMetric = SanitizeSheetNameStatic(metricName);
-            return $"{sanitizedComponent}_{sanitizedMetric}";
+            ws.Cell(1, 1).FormulaA1 = HyperlinkFormula("Summary", "Back to index");
+            ws.Cell(1, 1).Style.Font.Bold = true;
         }
 
         /// <summary>
-        /// Builds a sheet name for components grouped by type.
-        /// Format: Components_{ComponentType}
+        /// Writes a hyperlink to another sheet with a label and description.
         /// </summary>
-        /// <param name="componentType">Component type (host, service, database, etc.).</param>
-        /// <returns>Sanitized logical name for the component type sheet.</returns>
+        /// <param name="ws">The sheet where the link will be written.</param>
+        /// <param name="row">The row where to write (1-based).</param>
+        /// <param name="targetSheet">Physical name of the target sheet.</param>
+        /// <param name="label">Text to display in the hyperlink.</param>
+        /// <param name="description">Description to display in column B.</param>
+        /// <remarks>
+        /// Creates a hyperlink in column A and puts the description in column B of the same row.
+        /// </remarks>
+        private static void WriteIndexLink(IXLWorksheet ws, int row, string targetSheet, string label, string description)
+        {
+            ws.Cell(row, 1).FormulaA1 = HyperlinkFormula(targetSheet, label);
+            ws.Cell(row, 2).Value = description;
+        }
+
+        /// <summary>
+        /// Creates an Excel HYPERLINK formula to navigate to another sheet.
+        /// </summary>
+        /// <param name="sheetName">Target sheet name (will be escaped appropriately).</param>
+        /// <param name="text">Text to display in the link (will be escaped appropriately).</param>
+        /// <returns>A string with the HYPERLINK formula ready to use in Excel.</returns>
+        /// <remarks>
+        /// Escapes single quotes in sheet name and double quotes in text according to Excel rules.
+        /// The link always points to cell A1 of the target sheet.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var formula = HyperlinkFormula("Summary", "Go to summary");
+        /// // Returns: HYPERLINK("#'Summary'!A1","Go to summary")
+        /// </code>
+        /// </example>
+        private static string HyperlinkFormula(string sheetName, string text)
+        {
+            var escapedSheet = sheetName.Replace("'", "''");
+            var escapedText = text.Replace("\"", "\"\"");
+            return $"HYPERLINK(\"#'{escapedSheet}'!A1\",\"{escapedText}\")";
+        }
+
+        /// <summary>
+        /// Sets the value of an Excel cell with appropriate formatting based on data type.
+        /// </summary>
+        /// <param name="cell">The cell where the value will be set.</param>
+        /// <param name="value">The value to write (can be null).</param>
         /// <remarks>
         /// <para>
-        /// Examples:
+        /// Handles the following types with special formatting:
+        /// </para>
         /// <list type="bullet">
-        /// <item><description>"host" → "Components_host"</description></item>
-        /// <item><description>"service" → "Components_service"</description></item>
-        /// <item><description>"database" → "Components_database"</description></item>
+        /// <item><description><c>null</c> → Empty string</description></item>
+        /// <item><description><see cref="DateTimeOffset"/> and <see cref="DateTime"/> → Format "yyyy-mm-dd hh:mm:ss"</description></item>
+        /// <item><description>Numeric types (<c>int</c>, <c>long</c>, <c>double</c>, <c>decimal</c>, <c>float</c>) → Direct numeric value</description></item>
+        /// <item><description><c>bool</c> → Boolean value</description></item>
+        /// <item><description>Others → String conversion with <c>ToString()</c></description></item>
         /// </list>
-        /// </para>
         /// </remarks>
-        public static string BuildComponentTypeSheetName(string componentType)
+        private static void SetCellValue(IXLCell cell, object? value)
         {
-            var sanitizedType = SanitizeSheetNameStatic(componentType).Replace(" ", "");
-            return $"Components_{sanitizedType}";
+            switch (value)
+            {
+                case null:
+                    cell.Value = string.Empty;
+                    break;
+                case DateTimeOffset dateTimeOffset:
+                    cell.Value = dateTimeOffset.UtcDateTime;
+                    cell.Style.DateFormat.Format = "yyyy-mm-dd hh:mm:ss";
+                    break;
+                case DateTime dateTime:
+                    cell.Value = dateTime;
+                    cell.Style.DateFormat.Format = "yyyy-mm-dd hh:mm:ss";
+                    break;
+                case bool boolean:
+                    cell.Value = boolean;
+                    break;
+                case int integer:
+                    cell.Value = integer;
+                    break;
+                case long longValue:
+                    cell.Value = longValue;
+                    break;
+                case double doubleValue:
+                    cell.Value = doubleValue;
+                    break;
+                case decimal decimalValue:
+                    cell.Value = decimalValue;
+                    break;
+                case float floatValue:
+                    cell.Value = floatValue;
+                    break;
+                default:
+                    cell.Value = value.ToString() ?? string.Empty;
+                    break;
+            }
         }
 
         /// <summary>
-        /// Builds a sheet name for metrics grouped by component type.
-        /// Format: {ComponentType}{MetricName} without spaces.
+        /// Logs information about duplicate columns found in workbook sheets.
         /// </summary>
-        /// <param name="componentType">Component type (host, service, database, etc.).</param>
-        /// <param name="metricName">Metric name (can include * for wildcards).</param>
-        /// <returns>Sanitized logical name without spaces (not truncated).</returns>
+        /// <param name="workbook">The Excel workbook to inspect for duplicate columns.</param>
+        /// <remarks>
+        /// Iterates through all worksheets and attempts to identify duplicate column names in tables.
+        /// Useful for debugging table creation errors related to duplicate field names.
+        /// </remarks>
+        private static void LogDuplicateColumns(XLWorkbook workbook)
+        {
+            try
+            {
+                foreach (var worksheet in workbook.Worksheets)
+                {
+                    try
+                    {
+                        Log.Debug("Checking worksheet '{SheetName}' for duplicate columns...", worksheet.Name);
+                        
+                        CheckTablesForDuplicates(worksheet);
+                        CheckHeaderRowForDuplicates(worksheet);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Failed to check worksheet '{SheetName}' for duplicate columns", worksheet.Name);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to log duplicate columns information");
+            }
+        }
+
+        /// <summary>
+        /// Checks all tables in a worksheet for duplicate column names.
+        /// </summary>
+        /// <param name="worksheet">The worksheet to check.</param>
+        private static void CheckTablesForDuplicates(IXLWorksheet worksheet)
+        {
+            foreach (var table in worksheet.Tables)
+            {
+                var columnNames = table.Fields.Select(f => f.Name).ToList();
+                var duplicates = FindDuplicateNames(columnNames);
+
+                if (duplicates.Count > 0)
+                {
+                    Log.Error("Found {Count} duplicate column(s) in table '{TableName}' on sheet '{SheetName}': {Columns}",
+                        duplicates.Count, table.Name, worksheet.Name,
+                        string.Join(", ", duplicates.Select(d => $"{d.Name} (x{d.Count})")));
+                }
+                else
+                {
+                    Log.Debug("No duplicate columns found in table '{TableName}' on sheet '{SheetName}'",
+                        table.Name, worksheet.Name);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Checks the first row of a worksheet for duplicate header names if no tables exist.
+        /// </summary>
+        /// <param name="worksheet">The worksheet to check.</param>
+        private static void CheckHeaderRowForDuplicates(IXLWorksheet worksheet)
+        {
+            if (worksheet.Tables.Any())
+            {
+                return;
+            }
+
+            var headers = ExtractHeadersFromFirstRow(worksheet);
+            
+            if (headers.Count == 0)
+            {
+                return;
+            }
+
+            var duplicates = FindDuplicateNames(headers);
+
+            if (duplicates.Count > 0)
+            {
+                Log.Error("Found {Count} duplicate column(s) in header row of sheet '{SheetName}': {Columns}",
+                    duplicates.Count, worksheet.Name,
+                    string.Join(", ", duplicates.Select(d => $"{d.Name} (x{d.Count})")));
+            }
+        }
+
+        /// <summary>
+        /// Extracts header names from the first row of a worksheet.
+        /// </summary>
+        /// <param name="worksheet">The worksheet to extract headers from.</param>
+        /// <returns>List of header names from the first row.</returns>
+        private static List<string> ExtractHeadersFromFirstRow(IXLWorksheet worksheet)
+        {
+            var firstRow = worksheet.Row(1);
+            var headers = new List<string>();
+            var col = 1;
+            const int maxColumns = 100; // Safety limit
+
+            while (!firstRow.Cell(col).IsEmpty() && col <= maxColumns)
+            {
+                headers.Add(firstRow.Cell(col).GetString());
+                col++;
+            }
+
+            return headers;
+        }
+
+        /// <summary>
+        /// Finds duplicate names in a collection of strings.
+        /// </summary>
+        /// <param name="names">Collection of names to check for duplicates.</param>
+        /// <returns>List of duplicate names with their counts.</returns>
+        private static List<(string Name, int Count)> FindDuplicateNames(List<string> names)
+        {
+            return names
+                .GroupBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .Where(g => g.Count() > 1)
+                .Select(g => (Name: g.Key, Count: g.Count()))
+                .ToList();
+        }
+
+        /// <summary>
+        /// Sheet name registry to manage duplicates and name truncation.
+        /// </summary>
         /// <remarks>
         /// <para>
-        /// This is the method currently used to generate metric sheet names.
+        /// Excel has a 31-character limit for sheet names and doesn't allow duplicates.
+        /// This class manages the conversion of logical names (can be long and descriptive)
+        /// to physical names (sanitized, truncated, and unique).
         /// </para>
         /// <para>
-        /// Examples:
+        /// Features:
         /// <list type="bullet">
-        /// <item><description>host + "CPU Utilized" → "hostCPUUtilized"</description></item>
-        /// <item><description>host + "Process CPU*" → "hostProcessCPU_"</description></item>
-        /// <item><description>service + "Request Rate" → "serviceRequestRate"</description></item>
+        /// <item><description>Sanitizes invalid characters (/, \, ?, *, [, ], :)</description></item>
+        /// <item><description>Truncates names to 31 characters</description></item>
+        /// <item><description>Adds suffixes _1, _2, etc. to avoid duplicates</description></item>
+        /// <item><description>Maintains mapping between logical and physical names</description></item>
         /// </list>
         /// </para>
-        /// <para>
-        /// Spaces are completely removed. Invalid characters are replaced with '_'.
-        /// Truncation to 31 characters is done later in <see cref="GetOrCreatePhysicalName"/>.
-        /// </para>
         /// </remarks>
-        public static string BuildMetricByTypeSheetName(string componentType, string metricName)
-        {
-            // Remove spaces and sanitize - ComponentType + MetricName without spaces
-            var sanitizedType = SanitizeSheetNameStatic(componentType).Replace(" ", "");
-            var sanitizedMetric = SanitizeSheetNameStatic(metricName).Replace(" ", "");
-            return $"{sanitizedType}{sanitizedMetric}";
-        }
-
-        /// <summary>
-        /// Wrapper for <see cref="SanitizeSheetNameStatic"/> for instance use.
-        /// </summary>
-        /// <param name="value">String to sanitize.</param>
-        /// <returns>Sanitized and truncated string to 31 characters.</returns>
-        private static string SanitizeSheetName(string value)
-        {
-            return SanitizeSheetNameStatic(value);
-        }
-
-        /// <summary>
-        /// Sanitizes and truncates a sheet name according to Excel rules.
-        /// </summary>
-        /// <param name="value">String to sanitize.</param>
-        /// <returns>Valid string for Excel sheet name (maximum 31 characters).</returns>
         /// <remarks>
-        /// <para>
-        /// Rules applied:
-        /// <list type="number">
-        /// <item><description>Replaces invalid file and Excel characters (/, \, ?, *, [, ], :) with '_'</description></item>
-        /// <item><description>Removes leading and trailing whitespace</description></item>
-        /// <item><description>If empty, uses "Sheet" as default name</description></item>
-        /// <item><description>Truncates to 31 characters (Excel limit)</description></item>
-        /// </list>
-        /// </para>
-        /// <para>
-        /// Invalid characters in Excel:
-        /// <c>[ ] * ? / \ :</c> and all invalid characters in operating system file names.
-        /// </para>
+        /// Initializes a new instance of the sheet registry.
         /// </remarks>
-        private static string SanitizeSheetNameStatic(string value)
+        /// <param name="workbook">The Excel workbook to verify existing names.</param>
+        private sealed class SheetRegistry(XLWorkbook workbook)
         {
-            var invalid = new HashSet<char>(Path.GetInvalidFileNameChars().Concat(['[', ']', '*', '?', '/', '\\', ':']));
-            var chars = value.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray();
-            var sanitized = new string(chars).Trim();
+            private readonly XLWorkbook _workbook = workbook;
+            private readonly Dictionary<string, string> _logicalToPhysical = new(StringComparer.OrdinalIgnoreCase);
+            private readonly HashSet<string> _usedPhysicalNames = new(StringComparer.OrdinalIgnoreCase);
 
-            if (string.IsNullOrWhiteSpace(sanitized))
-                sanitized = "Sheet";
+            /// <summary>
+            /// Registers an explicit mapping between logical and physical name.
+            /// </summary>
+            /// <param name="logicalName">Logical/descriptive sheet name.</param>
+            /// <param name="physicalName">Physical name that will appear in Excel.</param>
+            /// <remarks>
+            /// Useful for standard sheets like "Summary", "Inputs", etc. that always have the same name.
+            /// </remarks>
+            public void Register(string logicalName, string physicalName)
+            {
+                _logicalToPhysical[logicalName] = physicalName;
+                _usedPhysicalNames.Add(physicalName);
+            }
 
-            return sanitized.Length <= 31 ? sanitized : sanitized[..31];
+            /// <summary>
+            /// Gets or creates a unique physical name for a given logical name.
+            /// </summary>
+            /// <param name="logicalName">Logical/descriptive sheet name.</param>
+            /// <returns>Sanitized, truncated, and guaranteed unique physical name.</returns>
+            /// <remarks>
+            /// <para>
+            /// If the logical name already has a mapping, returns it.
+            /// If not, generates a new physical name:
+            /// <list type="number">
+            /// <item><description>Sanitizes invalid characters</description></item>
+            /// <item><description>Truncates to 31 characters</description></item>
+            /// <item><description>If conflict exists, adds _1, _2, etc.</description></item>
+            /// <item><description>Saves the mapping for future queries</description></item>
+            /// </list>
+            /// </para>
+            /// </remarks>
+            public string GetOrCreatePhysicalName(string logicalName)
+            {
+                if (_logicalToPhysical.TryGetValue(logicalName, out var existing))
+                {
+                    return existing;
+                }
+
+                var baseName = SanitizeSheetName(logicalName);
+                var candidate = baseName;
+                var index = 1;
+                while (_usedPhysicalNames.Contains(candidate) || _workbook.Worksheets.Any(w => w.Name.Equals(candidate, StringComparison.OrdinalIgnoreCase)))
+                {
+                    var suffix = $"_{index++}";
+                    var prefixLength = Math.Min(baseName.Length, 31 - suffix.Length);
+                    candidate = baseName[..prefixLength] + suffix;
+                }
+
+                _logicalToPhysical[logicalName] = candidate;
+                _usedPhysicalNames.Add(candidate);
+                return candidate;
+            }
+
+            /// <summary>
+            /// Builds a sheet name for collections (format: COL_{collection}_{type}).
+            /// </summary>
+            /// <param name="collectionName">Collection name.</param>
+            /// <param name="componentType">Component type.</param>
+            /// <returns>Logical name for the collection sheet.</returns>
+            /// <remarks>
+            /// Legacy method kept for compatibility. No longer used in current structure.
+            /// </remarks>
+            public static string BuildCollectionSheetName(string collectionName, string componentType)
+                => $"COL_{collectionName}_{componentType}";
+
+            /// <summary>
+            /// Builds a sheet name for individual metrics (format: MET_{metric}).
+            /// </summary>
+            /// <param name="metricName">Metric name.</param>
+            /// <returns>Logical name for the metric sheet.</returns>
+            /// <remarks>
+            /// Legacy method kept for compatibility. No longer used in current structure.
+            /// </remarks>
+            public static string BuildMetricSheetName(string metricName)
+                => $"MET_{metricName}";
+
+            /// <summary>
+            /// Builds a sheet name for component-metric (format: {component}_{metric}).
+            /// </summary>
+            /// <param name="componentName">Component name.</param>
+            /// <param name="metricName">Metric name.</param>
+            /// <returns>Sanitized logical name for the sheet with underscores replacing spaces (not truncated).</returns>
+            /// <remarks>
+            /// <para>
+            /// Legacy method kept for compatibility. No longer used in current structure.
+            /// </para>
+            /// <para>
+            /// Spaces in component and metric names are replaced with underscores.
+            /// </para>
+            /// </remarks>
+            public static string BuildComponentMetricSheetName(string componentName, string metricName)
+            {
+                // Don't truncate here - let GetOrCreatePhysicalName handle truncation AND deduplication
+                var sanitizedComponent = SanitizeSheetNameStatic(componentName);
+                var sanitizedMetric = SanitizeSheetNameStatic(metricName);
+                return $"{sanitizedComponent}_{sanitizedMetric}";
+            }
+
+            /// <summary>
+            /// Builds a sheet name for components grouped by type.
+            /// Format: Components_{ComponentType}
+            /// </summary>
+            /// <param name="componentType">Component type (host, service, database, etc.).</param>
+            /// <returns>Sanitized logical name for the component type sheet.</returns>
+            /// <remarks>
+            /// <para>
+            /// Examples:
+            /// <list type="bullet">
+            /// <item><description>"host" → "Components_host"</description></item>
+            /// <item><description>"service" → "Components_service"</description></item>
+            /// <item><description>"database" → "Components_database"</description></item>
+            /// <item><description>"my type" → "Components_my_type"</description></item>
+            /// </list>
+            /// </para>
+            /// <para>
+            /// Spaces in component type are replaced with underscores.
+            /// </para>
+            /// </remarks>
+            public static string BuildComponentTypeSheetName(string componentType)
+            {
+                var sanitizedType = SanitizeSheetNameStatic(componentType);
+                return $"Components_{sanitizedType}";
+            }
+
+            /// <summary>
+            /// Builds a sheet name for metrics grouped by component type.
+            /// Format: {ComponentType}_{MetricName} with underscores replacing spaces.
+            /// </summary>
+            /// <param name="componentType">Component type (host, service, database, etc.).</param>
+            /// <param name="metricName">Metric name (can include * for wildcards).</param>
+            /// <returns>Sanitized logical name with underscores replacing spaces (not truncated).</returns>
+            /// <remarks>
+            /// <para>
+            /// This is the method currently used to generate metric sheet names.
+            /// </para>
+            /// <para>
+            /// Examples:
+            /// <list type="bullet">
+            /// <item><description>host + "CPU Utilized" → "host_CPU_Utilized"</description></item>
+            /// <item><description>host + "Process CPU*" → "host_Process_CPU_"</description></item>
+            /// <item><description>service + "Request Rate" → "service_Request_Rate"</description></item>
+            /// </list>
+            /// </para>
+            /// <para>
+            /// Spaces are replaced with underscores. Invalid characters are replaced with '_'.
+            /// Truncation to 31 characters is done later in <see cref="GetOrCreatePhysicalName"/>.
+            /// </para>
+            /// </remarks>
+            public static string BuildMetricByTypeSheetName(string componentType, string metricName)
+            {
+                // Sanitize - ComponentType + MetricName with underscores replacing spaces
+                var sanitizedType = SanitizeSheetNameStatic(componentType);
+                var sanitizedMetric = SanitizeSheetNameStatic(metricName);
+                return $"{sanitizedType}_{sanitizedMetric}";
+            }
+
+            /// <summary>
+            /// Wrapper for <see cref="SanitizeSheetNameStatic"/> for instance use.
+            /// </summary>
+            /// <param name="value">String to sanitize.</param>
+            /// <returns>Sanitized and truncated string to 31 characters.</returns>
+            private static string SanitizeSheetName(string value) => SanitizeSheetNameStatic(value);
+
+            /// <summary>
+            /// Sanitizes and truncates a sheet name according to Excel rules.
+            /// </summary>
+            /// <param name="value">String to sanitize.</param>
+            /// <returns>Valid string for Excel sheet name (maximum 31 characters).</returns>
+            /// <remarks>
+            /// <para>
+            /// Rules applied:
+            /// <list type="number">
+            /// <item><description>Replaces invalid file and Excel characters (/, \, ?, *, [, ], :) with '_'</description></item>
+            /// <item><description>Replaces spaces with underscores ('_')</description></item>
+            /// <item><description>Removes leading and trailing whitespace before processing</description></item>
+            /// <item><description>If empty, uses "Sheet" as default name</description></item>
+            /// <item><description>Truncates to 31 characters (Excel limit)</description></item>
+            /// </list>
+            /// </para>
+            /// <para>
+            /// Invalid characters in Excel:
+            /// <c>[ ] * ? / \ :</c> and all invalid characters in operating system file names.
+            /// </para>
+            /// </remarks>
+            private static string SanitizeSheetNameStatic(string value)
+            {
+                var invalid = new HashSet<char>(Path.GetInvalidFileNameChars().Concat(['[', ']', '*', '?', '/', '\\', ':']));
+                var chars = value.Trim().Select(ch => invalid.Contains(ch) || ch == ' ' ? '_' : ch).ToArray();
+                var sanitized = new string(chars);
+
+                if (string.IsNullOrWhiteSpace(sanitized))
+                {
+                    sanitized = "Sheet";
+                }
+
+                return sanitized.Length <= 31 ? sanitized : sanitized[..31];
+            }
         }
     }
 }

@@ -5,7 +5,14 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <!-- Version information (automatically generated) -->
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Deterministic>false</Deterministic>
   </PropertyGroup>
+
+  <!-- Import version auto-increment targets -->
+  <Import Project="VersionInfo.targets" />
 
   <ItemGroup>
     <ProjectReference Include="..\ArcGISMonitorExcelReporterLib\ArcGISMonitorExcelReporterLib.csproj" />

@@ -1,5 +1,6 @@
 ﻿using ArcGISMonitorExcelReporterLib;
 using ReporterConfiguration = ArcGISMonitorExcelReporterLib.Configuration.Configuration;
+using Reporter = ArcGISMonitorExcelReporterLib.ArcGISMonitorExcelReporter;
 using Serilog;
 
 // This application creates two folders relative to the configuration file location:
@@ -14,6 +15,8 @@ if (!TryParseArguments(args, out var configFilePath))
 
 #if DEBUG
     // In DEBUG mode, show parsed configuration for verification
+    Console.WriteLine($"[DEBUG] ArcGIS Monitor Excel Reporter v{VersionInfo.Version}");
+    Console.WriteLine($"[DEBUG] Build: {VersionInfo.BuildTimestamp}");
     Console.WriteLine($"[DEBUG] Configuration file: {configFilePath}");
     Console.WriteLine($"[DEBUG] Full path: {Path.GetFullPath(configFilePath)}");
     Console.WriteLine($"[DEBUG] Working directory: {Directory.GetCurrentDirectory()}");
@@ -49,7 +52,10 @@ try
             outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
         .CreateLogger();
 
-    Log.Information("=== ArcGIS Monitor Excel Reporter Started ===");
+    Log.Information("=============================================================");
+    Log.Information("=== ArcGIS Monitor Excel Reporter {Version} ===", VersionInfo.Version);
+    Log.Information("=== Build: {BuildTimestamp} ===", VersionInfo.BuildTimestamp);
+    Log.Information("=============================================================");
     Log.Information("Configuration file: {ConfigPath}", configFilePath);
     Log.Information("Reports folder: {ReportsFolder}", reportsFolder);
     Log.Information("Logs folder: {LogsFolder}", logsFolder);
@@ -64,7 +70,7 @@ try
     var configuration = await ReporterConfiguration.LoadAsync(configFilePath, cancellationToken);
     Log.Information("Configuration loaded successfully");
 
-    var reporter = new ArcGISMonitorExcelReporter();
+    var reporter = new Reporter();
 
     Log.Information("Starting Excel report generation...");
     await reporter.GenerateExcelAsync(
@@ -72,7 +78,11 @@ try
         outputExcelPath,
         cancellationToken);
 
-    Log.Information("=== Excel report generated successfully: {OutputPath} ===", outputExcelPath);
+    Log.Information("=============================================================");
+    Log.Information("=== Report generated successfully ===");
+    Log.Information("=== Output: {OutputPath} ===", outputExcelPath);
+    Log.Information("=== Version: {Version} ===", VersionInfo.Version);
+    Log.Information("=============================================================");
     return 0; // Exit with success code
 }
 catch (Exception ex)
@@ -152,8 +162,9 @@ static bool TryParseArguments(string[] args, out string configFilePath)
 /// </summary>
 static void ShowHelp()
 {
-    Console.WriteLine("ArcGIS Monitor Excel Reporter");
-    Console.WriteLine("==============================");
+    Console.WriteLine($"ArcGIS Monitor Excel Reporter v{VersionInfo.Version}");
+    Console.WriteLine($"Build: {VersionInfo.BuildTimestamp}");
+    Console.WriteLine("========================================================");
     Console.WriteLine();
     Console.WriteLine("Usage:");
     Console.WriteLine("  ArcGISMonitorExcelReporter -f <config-file>");

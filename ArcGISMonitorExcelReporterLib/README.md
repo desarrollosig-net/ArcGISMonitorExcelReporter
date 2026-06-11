@@ -97,6 +97,40 @@ Example log output:
 
 ## Usage from JSON File
 
+### Server URL Configuration
+
+The `server.url` must be configured according to your ArcGIS Monitor installation type:
+
+**Installation with Port (Direct Access):**
+```json
+{
+  "server": {
+    "url": "https://monitor.example.com:30443/arcgis",
+    ...
+  }
+}
+```
+- URL includes `/arcgis` context
+- Typically uses port 30443
+- Direct access to ArcGIS Monitor server
+
+**Installation with Web Adaptor:**
+```json
+{
+  "server": {
+    "url": "https://monitor.example.com/monitor",
+    ...
+  }
+}
+```
+- URL includes web adaptor name (e.g., `/monitor`) instead of `/arcgis`
+- No port specified (uses default 443)
+- Access through IIS/Apache web server
+
+**Important:** The library endpoints (`auth/token`, `monitoring/collections/query`, `monitoring/metrics/query`) are relative to the configured base URL. Do NOT include `/arcgis` or web adaptor name in endpoints - they come from the base URL.
+
+### Complete Configuration Example
+
 ```csharp
 using ArcGISMonitorExcelReporterLib;
 using ReporterConfiguration = ArcGISMonitorExcelReporterLib.Configuration.Configuration;

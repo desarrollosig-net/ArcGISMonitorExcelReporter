@@ -1,0 +1,58 @@
+<Project>
+  <PropertyGroup>
+    <!-- Base version: yyyy.MM.dd -->
+    <VersionPrefix>$([System.DateTime]::Now.ToString('yyyy.MM.dd'))</VersionPrefix>
+    
+    <!-- Build number file path -->
+    <BuildNumberFile>$(MSBuildProjectDirectory)\BuildNumber.txt</BuildNumberFile>
+  </PropertyGroup>
+
+  <Target Name="IncrementBuildNumber" BeforeTargets="BeforeBuild">
+    <!-- Read current build number or start at 1 -->
+    <PropertyGroup>
+      <BuildNumber Condition="Exists('$(BuildNumberFile)')">$([System.IO.File]::ReadAllText('$(BuildNumberFile)').Trim())</BuildNumber>
+      <BuildNumber Condition="'$(BuildNumber)' == ''">1</BuildNumber>
+      
+      <!-- Get current date prefix -->
+      <CurrentDatePrefix>$([System.DateTime]::Now.ToString('yyyy.MM.dd'))</CurrentDatePrefix>
+      
+      <!-- Read last date prefix if file exists -->
+      <LastDatePrefixFile>$(MSBuildProjectDirectory)\LastDatePrefix.txt</LastDatePrefixFile>
+      <LastDatePrefix Condition="Exists('$(LastDatePrefixFile)')">$([System.IO.File]::ReadAllText('$(LastDatePrefixFile)').Trim())</LastDatePrefix>
+    </PropertyGroup>
+
+    <!-- Reset build number to 1 if date changed, otherwise increment -->
+    <PropertyGroup>
+      <BuildNumber Condition="'$(CurrentDatePrefix)' != '$(LastDatePrefix)'">1</BuildNumber>
+      <BuildNumber Condition="'$(CurrentDatePrefix)' == '$(LastDatePrefix)'">$([MSBuild]::Add($(BuildNumber), 1))</BuildNumber>
+    </PropertyGroup>
+
+    <!-- Write updated build number and date prefix -->
+    <WriteLinesToFile File="$(BuildNumberFile)" Lines="$(BuildNumber)" Overwrite="true" />
+    <WriteLinesToFile File="$(LastDatePrefixFile)" Lines="$(CurrentDatePrefix)" Overwrite="true" />
+
+    <!-- Set full version -->
+    <PropertyGroup>
+      <ApplicationVersion>$(CurrentDatePrefix).$(BuildNumber)</ApplicationVersion>
+      <FileVersion>$(ApplicationVersion)</FileVersion>
+      <AssemblyVersion>$(ApplicationVersion)</AssemblyVersion>
+      <InformationalVersion>$(ApplicationVersion)</InformationalVersion>
+    </PropertyGroup>
+
+    <Message Text="Building version: $(ApplicationVersion)" Importance="high" />
+  </Target>
+
+  <Target Name="GenerateVersionFile" AfterTargets="IncrementBuildNumber" BeforeTargets="CoreCompile">
+    <!-- Create obj directory if it doesn't exist -->
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+
+    <!-- Call PowerShell script to generate version file -->
+    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\GenerateVersionFile.ps1&quot; -OutputPath &quot;$(IntermediateOutputPath)VersionInfo.g.cs&quot; -Version &quot;$(ApplicationVersion)&quot; -DateVersion &quot;$(CurrentDatePrefix)&quot; -BuildNumber &quot;$(BuildNumber)&quot;" />
+
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)VersionInfo.g.cs" />
+    </ItemGroup>
+
+    <Message Text="Generated version file: $(IntermediateOutputPath)VersionInfo.g.cs" Importance="high" />
+  </Target>
+</Project>

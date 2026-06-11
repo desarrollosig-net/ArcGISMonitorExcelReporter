@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 using ArcGISMonitorExcelReporterLib.Builders;
 using ArcGISMonitorExcelReporterLib.Models;
 
@@ -43,151 +45,6 @@ namespace ArcGISMonitorExcelReporterLib.Client
     public sealed class ArcGisMonitorQueryService(ArcGisMonitorClient client)
     {
         private readonly ArcGisMonitorClient _client = client;
-
-        /// <summary>
-        /// Counts the number of components matching the specified criteria.
-        /// </summary>
-        /// <param name="collectionName">The name of the collection to query. Use <c>null</c>, <c>""</c>, or <c>"*"</c> to count components from all collections.</param>
-        /// <param name="componentType">The type of components to count (e.g., "host", "service", "database").</param>
-        /// <param name="fromUtc">Start date/time (UTC) for filtering time-based resources.</param>
-        /// <param name="toUtc">End date/time (UTC) for filtering time-based resources.</param>
-        /// <param name="cancellationToken">Cancellation token for async operation.</param>
-        /// <returns>The total count of components matching the criteria.</returns>
-        /// <remarks>
-        /// <para>
-        /// This method performs an efficient count-only query without retrieving full component data.
-        /// Use this to determine the total number of records before fetching them.
-        /// </para>
-        /// <para>
-        /// The time range parameters affect child resources like logs, but the component count
-        /// itself is not filtered by these dates.
-        /// </para>
-        /// <para>
-        /// <b>Collection filtering:</b> Pass <c>null</c>, empty string, or <c>"*"</c> as <paramref name="collectionName"/>
-        /// to count components from all collections.
-        /// </para>
-        /// </remarks>
-        /// <example>
-        /// <code>
-        /// // Count from specific collection
-        /// var count = await service.CountComponentsAsync(
-        ///     collectionName: "Production",
-        ///     componentType: "host",
-        ///     fromUtc: DateTimeOffset.UtcNow.AddDays(-7),
-        ///     toUtc: DateTimeOffset.UtcNow);
-        /// 
-        /// // Count from all collections
-        /// var allCount = await service.CountComponentsAsync(
-        ///     collectionName: "*",  // or null or ""
-        ///     componentType: "host",
-        ///     fromUtc: DateTimeOffset.UtcNow.AddDays(-7),
-        ///     toUtc: DateTimeOffset.UtcNow);
-        /// 
-        /// Console.WriteLine($"Total hosts: {count}");
-        /// Console.WriteLine($"All hosts: {allCount}");
-        /// </code>
-        /// </example>
-        public async Task<int> CountComponentsAsync(
-            string collectionName,
-            string componentType,
-            DateTimeOffset fromUtc,
-            DateTimeOffset toUtc,
-            CancellationToken cancellationToken = default)
-        {
-            var request = MonitorQueryBuilders.CollectionComponents(
-                collectionName,
-                componentType,
-                returnCountOnly: true,
-                fromUtc: fromUtc,
-                toUtc: toUtc);
-
-            var response = await _client.QueryCollectionsAsync(request, cancellationToken).ConfigureAwait(false);
-            return response.Features.FirstOrDefault()?.Components.Count ?? 0;
-        }
-
-        /// <summary>
-        /// Retrieves all components of a specified type with automatic pagination.
-        /// </summary>
-        /// <param name="collectionName">The name of the collection to query. Use <c>null</c>, <c>""</c>, or <c>"*"</c> to query all collections.</param>
-        /// <param name="componentType">The type of components to retrieve (e.g., "host", "service", "database").</param>
-        /// <param name="fromUtc">Start date/time (UTC) for filtering child resources like logs.</param>
-        /// <param name="toUtc">End date/time (UTC) for filtering child resources like logs.</param>
-        /// <param name="pageSize">Number of records per page. Default is 100.</param>
-        /// <param name="cancellationToken">Cancellation token for async operation.</param>
-        /// <returns>A list containing all components matching the criteria.</returns>
-        /// <remarks>
-        /// <para>
-        /// This method automatically handles pagination, first counting the total records
-        /// and then fetching all pages until the complete result set is retrieved.
-        /// </para>
-        /// <para>
-        /// Components include related resources: logs (within date range), labels, parents,
-        /// agents, and the Metrics observer.
-        /// </para>
-        /// <para>
-        /// For large result sets, consider using a larger <paramref name="pageSize"/>
-        /// (e.g., 200-500) to reduce the number of HTTP requests.
-        /// </para>
-        /// <para>
-        /// <b>Collection filtering:</b> Pass <c>null</c>, empty string, or <c>"*"</c> as <paramref name="collectionName"/>
-        /// to retrieve components from all collections.
-        /// </para>
-        /// </remarks>
-        /// <example>
-        /// <code>
-        /// // Query specific collection
-        /// var components = await service.GetComponentsAsync(
-        ///     collectionName: "Production",
-        ///     componentType: "host",
-        ///     fromUtc: DateTimeOffset.UtcNow.AddDays(-1),
-        ///     toUtc: DateTimeOffset.UtcNow,
-        ///     pageSize: 200);
-        /// 
-        /// // Query all collections
-        /// var allComponents = await service.GetComponentsAsync(
-        ///     collectionName: "*",  // or null or ""
-        ///     componentType: "host",
-        ///     fromUtc: DateTimeOffset.UtcNow.AddDays(-1),
-        ///     toUtc: DateTimeOffset.UtcNow,
-        ///     pageSize: 200);
-        /// 
-        /// foreach (var component in components)
-        /// {
-        ///     Console.WriteLine($"Component: {component.Attributes.Name}");
-        /// }
-        /// </code>
-        /// </example>
-        public async Task<List<ComponentFeature>> GetComponentsAsync(
-            string collectionName,
-            string componentType,
-            DateTimeOffset fromUtc,
-            DateTimeOffset toUtc,
-            int pageSize = 100,
-            CancellationToken cancellationToken = default)
-        {
-            var total = await CountComponentsAsync(collectionName, componentType, fromUtc, toUtc, cancellationToken).ConfigureAwait(false);
-            var components = new List<ComponentFeature>(Math.Max(total, 0));
-
-            for(var offset = 0; offset < Math.Max(total, 1); offset += pageSize)
-            {
-                var request = MonitorQueryBuilders.CollectionComponents(
-                    collectionName,
-                    componentType,
-                    returnCountOnly: false,
-                    resultRecordCount: pageSize,
-                    resultOffset: offset,
-                    fromUtc: fromUtc,
-                    toUtc: toUtc);
-
-                var response = await _client.QueryCollectionsAsync(request, cancellationToken).ConfigureAwait(false);
-                components.AddRange(response.Features.SelectMany(f => f.Components.Items));
-
-                if(total == 0)
-                    break;
-            }
-
-            return components;
-        }
 
         /// <summary>
         /// Retrieves all components with their associated metrics using automatic pagination.
@@ -276,12 +133,235 @@ namespace ArcGISMonitorExcelReporterLib.Client
                 Log.Debug("Retrieved {Count} components in this page", pageCount);
 
                 if(total == 0)
+                {
                     break;
+                }
             }
 
             Log.Debug("Completed fetching {Total} components with metrics", components.Count);
 
             return components;
+        }
+
+        /// <summary>
+        /// Retrieves ALL components (without type filter) with their associated metrics, statistics, and alerts using automatic pagination.
+        /// </summary>
+        /// <param name="collectionName">The name of the collection to query. Use <c>null</c>, <c>""</c>, or <c>"*"</c> to query all components across all collections.</param>
+        /// <param name="fromUtc">Start date/time (UTC) for the statistics aggregation period and alert filtering.</param>
+        /// <param name="toUtc">End date/time (UTC) for the statistics aggregation period and alert filtering.</param>
+        /// <param name="pageSize">Number of records per page. Default is 100.</param>
+        /// <param name="cancellationToken">Cancellation token for async operation.</param>
+        /// <returns>A list containing all components (all types) with their nested metrics, aggregated statistics, and alerts.</returns>
+        /// <remarks>
+        /// <para>
+        /// This method retrieves ALL components regardless of type, along with their metric definitions,
+        /// aggregated statistics, and alerts. It does not filter by component type - use this when you want to:
+        /// <list type="bullet">
+        /// <item><description>Get all component types in a single query (more efficient than multiple calls)</description></item>
+        /// <item><description>Filter by type locally after retrieval</description></item>
+        /// <item><description>Query components across multiple or all collections</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// <b>Query Strategy:</b> This method uses two different query strategies depending on the collection parameter:
+        /// </para>
+        /// <para>
+        /// <b>1. Direct Component Query</b> (when <paramref name="collectionName"/> is <c>null</c>, <c>""</c>, or <c>"*"</c>):
+        /// <list type="bullet">
+        /// <item><description>Uses <c>/monitoring/components/query</c> endpoint</description></item>
+        /// <item><description>Filters by <c>state = 'monitored'</c></description></item>
+        /// <item><description>More efficient for querying all components</description></item>
+        /// <item><description>No deduplication needed (inherently unique)</description></item>
+        /// <item><description>Returns components in their natural order</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// <b>2. Collection-based Query</b> (when <paramref name="collectionName"/> is a specific collection name):
+        /// <list type="bullet">
+        /// <item><description>Uses <c>/monitoring/collections/query</c> endpoint</description></item>
+        /// <item><description>Filters by collection name</description></item>
+        /// <item><description>Retrieves all component types within the collection</description></item>
+        /// <item><description>Returns components grouped by collection</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// Both strategies:
+        /// <list type="number">
+        /// <item><description>Perform a count-only query to determine total records</description></item>
+        /// <item><description>Fetch pages of components with metrics, statistics, and alerts until all are retrieved</description></item>
+        /// <item><description>Log progress at debug level</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// <b>Performance consideration:</b> This may return a large dataset. Consider using
+        /// a larger <paramref name="pageSize"/> (200-500) to reduce HTTP requests.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// // Query all components from ALL collections (uses direct component query)
+        /// var allComponents = await service.GetAllComponentsWithMetricsAsync(
+        ///     collectionName: "*",  // or null or ""
+        ///     fromUtc: DateTimeOffset.UtcNow.AddDays(-7),
+        ///     toUtc: DateTimeOffset.UtcNow,
+        ///     pageSize: 200);
+        /// 
+        /// // Query all component types from a specific collection (uses collection query)
+        /// var productionComponents = await service.GetAllComponentsWithMetricsAsync(
+        ///     collectionName: "Production",
+        ///     fromUtc: DateTimeOffset.UtcNow.AddDays(-7),
+        ///     toUtc: DateTimeOffset.UtcNow,
+        ///     pageSize: 200);
+        /// 
+        /// // Filter locally by type after retrieval
+        /// var hosts = allComponents
+        ///     .Where(c => c.Attributes.Type == "host")
+        ///     .ToList();
+        /// 
+        /// var services = allComponents
+        ///     .Where(c => c.Attributes.Type == "service")
+        ///     .ToList();
+        /// 
+        /// var databases = allComponents
+        ///     .Where(c => c.Attributes.Type == "database")
+        ///     .ToList();
+        /// 
+        /// Console.WriteLine($"Retrieved {allComponents.Count} total components");
+        /// Console.WriteLine($"Hosts: {hosts.Count}, Services: {services.Count}, Databases: {databases.Count}");
+        /// 
+        /// // Access metrics with statistics for each component
+        /// foreach (var component in allComponents)
+        /// {
+        ///     Console.WriteLine($"{component.Attributes.Name} ({component.Attributes.Type})");
+        ///     Console.WriteLine($"  Metrics: {component.Metrics?.Count ?? 0}");
+        ///     
+        ///     foreach (var metric in component.Metrics ?? [])
+        ///     {
+        ///         var stats = metric.MetricsData?.FirstOrDefault()?.Attributes;
+        ///         if (stats != null)
+        ///         {
+        ///             Console.WriteLine($"    {metric.Attributes.Name}:");
+        ///             Console.WriteLine($"      Avg: {stats.AvgValue:F2}, Max: {stats.MaxValue:F2}");
+        ///         }
+        ///     }
+        /// }
+        /// </code>
+        /// </example>
+        public async Task<List<ComponentFeature>> GetAllComponentsWithMetricsAsync(
+            string collectionName,
+            DateTimeOffset fromUtc,
+            DateTimeOffset toUtc,
+            int pageSize = 100,
+            CancellationToken cancellationToken = default)
+        {
+            // When querying all collections, use direct component query instead
+            var queryComponents = string.IsNullOrEmpty(collectionName) || collectionName == "*";
+
+            if (queryComponents)
+            {
+                Log.Debug("Getting component count...");
+
+                // Perform direct component query with state='monitored' filter
+                var countRequest = MonitorQueryBuilders.AllComponentsWithMetrics(
+                    where: "state = 'monitored'",
+                    fromUtc: fromUtc,
+                    toUtc: toUtc,
+                    returnCountOnly: true,
+                    resultRecordCount: pageSize,
+                    resultOffset: 0);
+
+                var countResponse = await _client.QueryComponentsAsync(
+                    countRequest,
+                    cancellationToken).ConfigureAwait(false);
+                var total = countResponse.Count;
+
+                Log.Debug("Total components to retrieve : {Total}", total);
+
+                var components = new List<ComponentFeature>(Math.Max(total, 0));
+
+                for(var offset = 0; offset < Math.Max(total, 1); offset += pageSize)
+                {
+                    Log.Debug("Fetching components page: offset {Offset}, size {PageSize}", offset, pageSize);
+
+                    var request = MonitorQueryBuilders.AllComponentsWithMetrics(
+                        where: "state = 'monitored'",
+                        fromUtc: fromUtc,
+                        toUtc: toUtc,
+                        returnCountOnly: false,
+                        resultRecordCount: pageSize,
+                        resultOffset: offset);
+
+                    // Log the actual JSON that will be sent to the API (using Monitor JSON options)
+                    var json = JsonSerializer.Serialize(request, new JsonSerializerOptions(MonitorJson.Options) { WriteIndented = true });
+                    Log.Debug("Request JSON:\n{Json}", json);
+
+                    var response = await _client.QueryComponentsAsync(request, cancellationToken).ConfigureAwait(false);
+                    components.AddRange(response.Features);
+
+                    Log.Debug("Retrieved {Count} components in this page", response.Features.Count);
+
+                    if(total == 0)
+                    {
+                        break;
+                    }
+                }
+
+                Log.Debug("Completed fetching {Total} components", components.Count);
+                return components;
+            }
+            else
+            {
+                // Query specific collection logic
+                Log.Debug("Getting component count for {Collection}...", collectionName);
+
+                var countRequest = MonitorQueryBuilders.CollectionAllComponentsWithMetrics(
+                    collectionName: collectionName,
+                    fromUtc: fromUtc,
+                    toUtc: toUtc,
+                    returnCountOnly: true,
+                    resultRecordCount: pageSize,
+                    resultOffset: 0);
+                var countResponse = await _client.QueryCollectionsAsync(
+                    countRequest, 
+                    cancellationToken).ConfigureAwait(false);
+                var total = countResponse.Features.Sum(f => f.Components?.Count ?? 0);
+
+                Log.Debug("Total components to retrieve : {Total}", total);
+
+                var components = new List<ComponentFeature>(Math.Max(total, 0));
+
+                for(var offset = 0; offset < Math.Max(total, 1); offset += pageSize)
+                {
+                    Log.Debug("Fetching components page : offset {Offset}, size {PageSize}", offset, pageSize);
+
+                    var request = MonitorQueryBuilders.CollectionAllComponentsWithMetrics(
+                        collectionName,
+                        fromUtc,
+                        toUtc,
+                        false,
+                        pageSize,
+                        offset);
+                    var json = JsonSerializer.Serialize(request, new JsonSerializerOptions(MonitorJson.Options) { WriteIndented = true });
+                    Log.Debug("Request JSON:\n{Json}", json);
+
+                    var response = await _client.QueryCollectionsAsync(
+                        request,
+                        cancellationToken).ConfigureAwait(false);
+                    var pageCount = response.Features.SelectMany(f => f.Components.Items).Count();
+                    components.AddRange(response.Features.SelectMany(f => f.Components.Items));
+
+                    Log.Debug("Retrieved {Count} components in this page", pageCount);
+
+                    if(total == 0)
+                    {
+                        break;
+                    }
+                }
+
+                Log.Debug("Completed fetching {Total} components", components.Count);
+
+                return components;
+            }
         }
 
         /// <summary>
@@ -411,7 +491,9 @@ namespace ArcGISMonitorExcelReporterLib.Client
                 Log.Debug("Retrieved {Count} components in this page", pageCount);
 
                 if(total == 0)
+                {
                     break;
+                }
             }
 
             Log.Debug("Completed fetching {Total} components with metric stats", components.Count);

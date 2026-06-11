@@ -1,6 +1,7 @@
 {
   "server": {
     "url": "https://monitor.example.com:30443/arcgis",
+    "_url_comment": "For installations WITH PORT (direct): https://server:30443/arcgis | For installations WITH WEB ADAPTOR: https://server/monitor (or /webadaptor_name)",
     "username": "usuario",
     "password": "cambiar_por_password_o_base64",
     "password_encoding": false,
