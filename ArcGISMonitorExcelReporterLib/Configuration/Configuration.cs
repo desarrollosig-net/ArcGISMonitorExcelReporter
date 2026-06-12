@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+
 using ArcGISMonitorExcelReporterLib.Models;
 using ArcGISMonitorExcelReporterLib.Reporting;
 
@@ -104,32 +105,32 @@ namespace ArcGISMonitorExcelReporterLib.Configuration
         /// </example>
         public void Validate()
         {
-            if (Server is null)
+            if(Server is null)
             {
                 throw new InvalidOperationException("Configuration must include the 'server' block.");
             }
 
-            if (Report is null)
+            if(Report is null)
             {
                 throw new InvalidOperationException("Configuration must include the 'report' block.");
             }
 
-            if (string.IsNullOrWhiteSpace(Server.Url))
+            if(string.IsNullOrWhiteSpace(Server.Url))
             {
                 throw new InvalidOperationException("server.url is required.");
             }
 
-            if (!Uri.TryCreate(Server.Url, UriKind.Absolute, out _))
+            if(!Uri.TryCreate(Server.Url, UriKind.Absolute, out _))
             {
                 throw new InvalidOperationException("server.url must be a valid absolute URL.");
             }
 
-            if (string.IsNullOrWhiteSpace(Server.Username))
+            if(string.IsNullOrWhiteSpace(Server.Username))
             {
                 throw new InvalidOperationException("server.username is required.");
             }
 
-            if (string.IsNullOrWhiteSpace(Server.Password))
+            if(string.IsNullOrWhiteSpace(Server.Password))
             {
                 throw new InvalidOperationException("server.password is required.");
             }
@@ -137,12 +138,12 @@ namespace ArcGISMonitorExcelReporterLib.Configuration
             // Allow empty collection or "*" to query all collections
             // No validation needed - empty or "*" means all collections
 
-            if (Report.Types.Count == 0)
+            if(Report.Types.Count == 0)
             {
                 throw new InvalidOperationException("report.types must contain at least one component type.");
             }
 
-            if (Report.PastDays < 0 || Report.PastHours < 0)
+            if(Report.PastDays < 0 || Report.PastHours < 0)
             {
                 throw new InvalidOperationException("report.past_days and report.past_hours cannot be negative.");
             }
@@ -198,6 +199,10 @@ namespace ArcGISMonitorExcelReporterLib.Configuration
 
             return new MonitorReportRequest
             {
+                ServerUrl = Server.Url,
+                Timezone = Report.Timezone,
+                PastDays = Report.PastDays,
+                PastHours = Report.PastHours,
                 CollectionNames = collectionNames,
                 ComponentTypes = [.. Report.Types.Where(v => !string.IsNullOrWhiteSpace(v)).Distinct(StringComparer.OrdinalIgnoreCase)],
                 MetricNameLikes = includeOnly,
@@ -229,7 +234,7 @@ namespace ArcGISMonitorExcelReporterLib.Configuration
         public bool PasswordEncoding { get; set; }
 
         [JsonPropertyName("ignore_ssl_errors")]
-        public bool IgnoreSslErrors { get; set; }  = true;
+        public bool IgnoreSslErrors { get; set; } = true;
 
         [JsonPropertyName("timeout_seconds")]
         public int TimeoutSeconds { get; set; } = 300;
@@ -245,7 +250,7 @@ namespace ArcGISMonitorExcelReporterLib.Configuration
             {
                 return Encoding.UTF8.GetString(Convert.FromBase64String(Password));
             }
-            catch (FormatException ex)
+            catch(FormatException ex)
             {
                 throw new InvalidOperationException("server.password_encoding is enabled, but server.password is not valid Base64.", ex);
             }
@@ -344,12 +349,12 @@ namespace ArcGISMonitorExcelReporterLib.Configuration
 
         public DateTimeOffset Resolve(TimeZoneInfo timezone)
         {
-            if (Now)
+            if(Now)
             {
                 return TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, timezone);
             }
 
-            if (Year <= 0 || Month <= 0 || Day <= 0)
+            if(Year <= 0 || Month <= 0 || Day <= 0)
             {
                 throw new InvalidOperationException("report.end_time must have now=true or valid year/month/day.");
             }
@@ -376,7 +381,7 @@ namespace ArcGISMonitorExcelReporterLib.Configuration
     {
         public static TimeZoneInfo Resolve(string? timeZoneId)
         {
-            if (string.IsNullOrWhiteSpace(timeZoneId))
+            if(string.IsNullOrWhiteSpace(timeZoneId))
             {
                 return TimeZoneInfo.Utc;
             }
@@ -385,9 +390,9 @@ namespace ArcGISMonitorExcelReporterLib.Configuration
             {
                 return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
             }
-            catch (TimeZoneNotFoundException) when (OperatingSystem.IsWindows())
+            catch(TimeZoneNotFoundException) when(OperatingSystem.IsWindows())
             {
-                if (string.Equals(timeZoneId, "America/Bogota", StringComparison.OrdinalIgnoreCase))
+                if(string.Equals(timeZoneId, "America/Bogota", StringComparison.OrdinalIgnoreCase))
                 {
                     return TimeZoneInfo.FindSystemTimeZoneById("SA Pacific Standard Time");
                 }

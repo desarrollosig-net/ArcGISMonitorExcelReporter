@@ -1,7 +1,9 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+
 using ArcGISMonitorExcelReporterLib.Models;
+
 using Serilog;
 
 namespace ArcGISMonitorExcelReporterLib.Client
@@ -32,12 +34,12 @@ namespace ArcGISMonitorExcelReporterLib.Client
             _httpClient.BaseAddress = baseUri;
 
             // Configure timeout
-            if (timeoutSeconds > 0)
+            if(timeoutSeconds > 0)
             {
                 _httpClient.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
                 Log.Debug("HttpClient timeout configured: {Timeout} seconds", timeoutSeconds);
             }
-            else if (timeoutSeconds == -1)
+            else if(timeoutSeconds == -1)
             {
                 _httpClient.Timeout = Timeout.InfiniteTimeSpan;
                 Log.Debug("HttpClient timeout configured: Infinite");
@@ -71,7 +73,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
                 requiresBearer: false,
                 cancellationToken).ConfigureAwait(false);
 
-            if (!token.Success || string.IsNullOrWhiteSpace(token.AccessToken))
+            if(!token.Success || string.IsNullOrWhiteSpace(token.AccessToken))
             {
                 Log.Error("Authentication failed: ArcGIS Monitor did not return a valid access_token");
                 throw new InvalidOperationException("ArcGIS Monitor did not return a valid access_token.");
@@ -164,14 +166,14 @@ namespace ArcGISMonitorExcelReporterLib.Client
             bool requiresBearer,
             CancellationToken cancellationToken)
         {
-            if (requiresBearer)
+            if(requiresBearer)
             {
                 if(string.IsNullOrWhiteSpace(_accessToken))
                 {
                     throw new InvalidOperationException("No token configured. Execute AuthenticateAsync or SetBearerToken before querying ArcGIS Monitor.");
                 }
 
-                if (_tokenExpiresAtUtc <= DateTimeOffset.UtcNow)
+                if(_tokenExpiresAtUtc <= DateTimeOffset.UtcNow)
                 {
                     throw new InvalidOperationException("Token is expired or about to expire. Renew authentication before executing the query.");
                 }
@@ -182,7 +184,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
                 Content = JsonContent.Create(request, options: _jsonOptions)
             };
 
-            if (requiresBearer)
+            if(requiresBearer)
             {
                 message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
             }
@@ -190,7 +192,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
             using var response = await _httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
-            if (!response.IsSuccessStatusCode)
+            if(!response.IsSuccessStatusCode)
             {
                 throw new HttpRequestException($"Error HTTP {(int)response.StatusCode} {response.ReasonPhrase}. Body: {body}");
             }
@@ -204,7 +206,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
         /// </summary>
         public void Dispose()
         {
-            if (_disposeClient)
+            if(_disposeClient)
             {
                 _httpClient.Dispose();
             }

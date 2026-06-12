@@ -197,7 +197,7 @@ namespace ArcGISMonitorExcelReporterLib.Models
     /// Used when querying components directly via the /monitoring/components/query endpoint.
     /// Supports nested inclusion of metrics and other component-related resources.
     /// </remarks>
-    public class ComponentIncludeSpec: IncludeSpec
+    public class ComponentIncludeSpec : IncludeSpec
     {
         /// <summary>
         /// Nested list of related resources to include within this component resource.

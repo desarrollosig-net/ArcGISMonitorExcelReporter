@@ -1,5 +1,7 @@
 using ArcGISMonitorExcelReporterLib;
+
 using ReporterConfiguration = ArcGISMonitorExcelReporterLib.Configuration.Configuration;
+
 using Serilog;
 using Serilog.Events;
 
@@ -50,7 +52,7 @@ namespace ArcGISMonitorExcelReporterLib.Samples
 
                 Log.Information("Report generation completed successfully");
             }
-            catch (Exception ex)
+            catch(Exception ex)
             {
                 Log.Fatal(ex, "Fatal error during report generation");
                 throw;
@@ -92,7 +94,7 @@ namespace ArcGISMonitorExcelReporterLib.Samples
 
                 Log.Information("=== Report Completed ===");
             }
-            catch (Exception ex)
+            catch(Exception ex)
             {
                 Log.Fatal(ex, "Fatal error occurred");
                 throw;
@@ -124,7 +126,7 @@ namespace ArcGISMonitorExcelReporterLib.Samples
                 var reporter = new ArcGISMonitorExcelReporter();
                 await reporter.GenerateExcelAsync(configuration, "report.xlsx");
             }
-            catch (Exception ex)
+            catch(Exception ex)
             {
                 Log.Fatal(ex, "Fatal error in production environment");
                 throw;

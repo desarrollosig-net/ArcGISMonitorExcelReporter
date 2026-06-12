@@ -257,7 +257,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
             // When querying all collections, use direct component query instead
             var queryComponents = string.IsNullOrEmpty(collectionName) || collectionName == "*";
 
-            if (queryComponents)
+            if(queryComponents)
             {
                 Log.Debug("Getting component count...");
 
@@ -291,10 +291,6 @@ namespace ArcGISMonitorExcelReporterLib.Client
                         resultRecordCount: pageSize,
                         resultOffset: offset);
 
-                    // Log the actual JSON that will be sent to the API (using Monitor JSON options)
-                    var json = JsonSerializer.Serialize(request, new JsonSerializerOptions(MonitorJson.Options) { WriteIndented = true });
-                    Log.Debug("Request JSON:\n{Json}", json);
-
                     var response = await _client.QueryComponentsAsync(request, cancellationToken).ConfigureAwait(false);
                     components.AddRange(response.Features);
 
@@ -322,7 +318,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
                     resultRecordCount: pageSize,
                     resultOffset: 0);
                 var countResponse = await _client.QueryCollectionsAsync(
-                    countRequest, 
+                    countRequest,
                     cancellationToken).ConfigureAwait(false);
                 var total = countResponse.Features.Sum(f => f.Components?.Count ?? 0);
 
@@ -341,8 +337,6 @@ namespace ArcGISMonitorExcelReporterLib.Client
                         false,
                         pageSize,
                         offset);
-                    var json = JsonSerializer.Serialize(request, new JsonSerializerOptions(MonitorJson.Options) { WriteIndented = true });
-                    Log.Debug("Request JSON:\n{Json}", json);
 
                     var response = await _client.QueryCollectionsAsync(
                         request,
@@ -508,6 +502,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
         /// <param name="fromUtc">Start date/time (UTC) for the time series data.</param>
         /// <param name="toUtc">End date/time (UTC) for the time series data.</param>
         /// <param name="bucket">Time bucket specification for grouping (e.g., "observed_at:15m" for 15-minute intervals). Default is "observed_at:15m".</param>
+        /// <param name="batchSize">Number of metric IDs to process per batch. Default is 100.</param>
         /// <param name="cancellationToken">Cancellation token for async operation.</param>
         /// <returns>A query response containing metrics with time-bucketed statistics.</returns>
         /// <remarks>
@@ -515,6 +510,11 @@ namespace ArcGISMonitorExcelReporterLib.Client
         /// This method retrieves time series data aggregated into time buckets, where each
         /// bucket contains statistical aggregations (count, min, max, avg, stddev, percentile_95, sum)
         /// for the specified time interval.
+        /// </para>
+        /// <para>
+        /// <b>Batch processing:</b> The method automatically splits large sets of metric IDs into
+        /// batches of <paramref name="batchSize"/> to avoid overwhelming the API and stay within
+        /// request size limits. Results from all batches are merged into a single response.
         /// </para>
         /// <para>
         /// <b>Bucket format:</b> "field:interval" where interval examples include:
@@ -564,17 +564,51 @@ namespace ArcGISMonitorExcelReporterLib.Client
             DateTimeOffset fromUtc,
             DateTimeOffset toUtc,
             string bucket = "observed_at:15m",
+            int batchSize = 100,
             CancellationToken cancellationToken = default)
         {
             var idList = metricIds.ToList();
-            Log.Debug("Fetching time series for {Count} metrics with bucket: {Bucket}", idList.Count, bucket);
+            Log.Debug("Fetching time series for {Count} metrics with bucket: {Bucket}, batch size: {BatchSize}",
+                idList.Count, bucket, batchSize);
 
-            var request = MonitorQueryBuilders.MetricsTimeSeries(idList, fromUtc, toUtc, bucket);
-            var response = await _client.QueryMetricsAsync(request, cancellationToken).ConfigureAwait(false);
+            if(idList.Count == 0)
+            {
+                Log.Warning("No metric IDs provided for time series query");
+                return new QueryResponse<MetricFeature>
+                {
+                    Features = [],
+                    Count = 0
+                };
+            }
 
-            Log.Debug("Retrieved time series data for {Count} metrics", response.Features.Count);
+            var allFeatures = new List<MetricFeature>();
+            var totalBatches = (int)Math.Ceiling(idList.Count / (double)batchSize);
 
-            return response;
+            for(var batchIndex = 0; batchIndex < totalBatches; batchIndex++)
+            {
+                var skip = batchIndex * batchSize;
+                var batchIds = idList.Skip(skip).Take(batchSize).ToList();
+
+                Log.Debug("Processing batch {Current}/{Total}: {Count} metric IDs (starting at index {Skip})",
+                    batchIndex + 1, totalBatches, batchIds.Count, skip);
+
+                var request = MonitorQueryBuilders.MetricsTimeSeries(batchIds, fromUtc, toUtc, bucket);
+                var response = await _client.QueryMetricsAsync(request, cancellationToken).ConfigureAwait(false);
+
+                allFeatures.AddRange(response.Features);
+
+                Log.Debug("Retrieved {Count} metric features from batch {Current}/{Total}",
+                    response.Features.Count, batchIndex + 1, totalBatches);
+            }
+
+            Log.Debug("Completed fetching time series data for {Total} metrics across {Batches} batch(es). Total features: {Features}",
+                idList.Count, totalBatches, allFeatures.Count);
+
+            return new QueryResponse<MetricFeature>
+            {
+                Features = allFeatures,
+                Count = allFeatures.Count
+            };
         }
     }
 }

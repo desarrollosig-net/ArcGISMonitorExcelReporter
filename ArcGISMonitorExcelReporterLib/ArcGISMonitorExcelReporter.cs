@@ -46,13 +46,13 @@ namespace ArcGISMonitorExcelReporterLib
             var queryService = new ArcGisMonitorQueryService(client);
             var reportService = new MonitorReportService(queryService);
 
-            Log.Information("Building report from {FromUtc:yyyy-MM-dd HH:mm:ss} to {ToUtc:yyyy-MM-dd HH:mm:ss} UTC", 
-                configuration.ToReportRequest().FromUtc, 
+            Log.Information("Building report from {FromUtc:yyyy-MM-dd HH:mm:ss} to {ToUtc:yyyy-MM-dd HH:mm:ss} UTC",
+                configuration.ToReportRequest().FromUtc,
                 configuration.ToReportRequest().ToUtc);
 
             var report = await reportService.BuildReportAsync(configuration.ToReportRequest(), cancellationToken).ConfigureAwait(false);
 
-            Log.Information("Report built successfully: {Collections} collections, {Components} components, {Metrics} metrics", 
+            Log.Information("Report built successfully: {Collections} collections, {Components} components, {Metrics} metrics",
                 report.Collections.Count, report.Components.Count, report.Metrics.Count);
 
             return report;
@@ -122,7 +122,7 @@ namespace ArcGISMonitorExcelReporterLib
             var baseUri = new Uri(baseUrl + "/");
 
             var clientToUse = _httpClient;
-            if (clientToUse is null && configuration.Server.IgnoreSslErrors)
+            if(clientToUse is null && configuration.Server.IgnoreSslErrors)
             {
                 var handler = new HttpClientHandler
                 {

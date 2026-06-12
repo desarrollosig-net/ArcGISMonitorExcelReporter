@@ -1,5 +1,6 @@
 using ArcGISMonitorExcelReporterLib;
 using ArcGISMonitorExcelReporterLib.Configuration;
+
 using ReporterConfiguration = ArcGISMonitorExcelReporterLib.Configuration.Configuration;
 
 namespace ArcGISMonitorExcelReporterLib.Samples

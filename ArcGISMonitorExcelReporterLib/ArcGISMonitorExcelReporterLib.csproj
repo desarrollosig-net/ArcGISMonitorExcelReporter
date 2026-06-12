@@ -7,6 +7,20 @@
     <AssemblyName>ArcGISMonitorExcelReporterLib</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <None Remove="Samples\sample.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Samples\collection.sample.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Samples\components.sample.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Samples\sample.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="ClosedXML" Version="0.104.2" />
     <PackageReference Include="Serilog" Version="4.2.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />

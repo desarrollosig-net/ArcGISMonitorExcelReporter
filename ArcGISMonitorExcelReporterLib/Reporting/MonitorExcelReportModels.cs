@@ -8,6 +8,26 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
     public sealed class MonitorReportRequest
     {
         /// <summary>
+        /// Gets or sets the ArcGIS Monitor server URL (used for display in the report).
+        /// </summary>
+        public string ServerUrl { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the IANA or Windows timezone ID used to resolve local dates.
+        /// </summary>
+        public string Timezone { get; set; } = "UTC";
+
+        /// <summary>
+        /// Gets or sets the number of past days used to define the time range.
+        /// </summary>
+        public int PastDays { get; set; }
+
+        /// <summary>
+        /// Gets or sets the number of past hours used to define the time range.
+        /// </summary>
+        public int PastHours { get; set; }
+
+        /// <summary>
         /// Gets or sets the list of collection names to query.
         /// </summary>
         public List<string> CollectionNames { get; set; } = [];
@@ -74,6 +94,31 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
     public sealed class MonitorExcelReport
     {
         /// <summary>
+        /// Gets or sets the ArcGIS Monitor server URL.
+        /// </summary>
+        public string ServerUrl { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the queried collection name, or null if all collections were queried.
+        /// </summary>
+        public string? CollectionName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the IANA or Windows timezone ID used for local date display.
+        /// </summary>
+        public string Timezone { get; set; } = "UTC";
+
+        /// <summary>
+        /// Gets or sets the number of past days used to define the time range.
+        /// </summary>
+        public int PastDays { get; set; }
+
+        /// <summary>
+        /// Gets or sets the number of past hours used to define the time range.
+        /// </summary>
+        public int PastHours { get; set; }
+
+        /// <summary>
         /// Gets or sets the timestamp when this report was generated (UTC).
         /// </summary>
         public DateTimeOffset GeneratedAtUtc { get; set; } = DateTimeOffset.UtcNow;
@@ -104,9 +149,20 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         public List<MetricReportRow> Metrics { get; set; } = [];
 
         /// <summary>
-        /// Gets or sets the metric time series or aggregated data rows.
+        /// Gets or sets the time bucket interval used for metric time series data (e.g. "15m", "1h").
+        /// Set after downsampling is applied.
+        /// </summary>
+        public string MetricDataBucket { get; set; } = "15m";
+
+        /// <summary>
+        /// Gets or sets the metric period-aggregate summary rows (one row per metric, from component queries).
         /// </summary>
         public List<MetricDataReportRow> MetricData { get; set; } = [];
+
+        /// <summary>
+        /// Gets or sets the downsampled metric time series rows (multi-point, from the dedicated time series API).
+        /// </summary>
+        public List<MetricDataReportRow> TimeSeriesMetricData { get; set; } = [];
 
         /// <summary>
         /// Gets or sets the alert rows.
@@ -284,6 +340,11 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// Gets or sets the critical threshold value.
         /// </summary>
         public double? CriticalThreshold { get; set; }
+
+        /// <summary>
+        /// Gets or sets the number of samples used for threshold evaluation.
+        /// </summary>
+        public int? Samples { get; set; }
     }
 
     /// <summary>
@@ -520,14 +581,20 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
             // Z-score for 95th percentile in a standard normal distribution
             const double Z_95 = 1.6448536269514722;
 
-            if (!mean.HasValue || double.IsNaN(mean.Value))
+            if(!mean.HasValue || double.IsNaN(mean.Value))
+            {
                 return null;
+            }
 
-            if (!stdDev.HasValue || double.IsNaN(stdDev.Value) || stdDev.Value < 0)
+            if(!stdDev.HasValue || double.IsNaN(stdDev.Value) || stdDev.Value < 0)
+            {
                 return null;
+            }
 
-            if (!maxValue.HasValue || double.IsNaN(maxValue.Value))
+            if(!maxValue.HasValue || double.IsNaN(maxValue.Value))
+            {
                 return null;
+            }
 
             // P95 = μ + z₀.₉₅ × σ
             var theoreticalP95 = mean.Value + (Z_95 * stdDev.Value);
@@ -546,7 +613,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         {
             var componentList = components.ToList();
 
-            foreach (var component in componentList)
+            foreach(var component in componentList)
             {
                 var c = component.Attributes;
                 var metrics = component.Metrics ?? [];
@@ -568,7 +635,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                     AlertCount = alerts.Count
                 });
 
-                foreach (var metric in metrics)
+                foreach(var metric in metrics)
                 {
                     var m = metric.Attributes;
                     report.Metrics.Add(new MetricReportRow
@@ -589,17 +656,18 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                         Operator = m.Operator,
                         InfoThreshold = m.InfoThreshold,
                         WarningThreshold = m.WarningThreshold,
-                        CriticalThreshold = m.CriticalThreshold
+                        CriticalThreshold = m.CriticalThreshold,
+                        Samples = m.Samples
                     });
 
-                    foreach (var data in metric.MetricsData ?? [])
+                    foreach(var data in metric.MetricsData ?? [])
                     {
                         var d = data.Attributes;
 
                         // Calculate exact Percentile 95 using normal distribution formula: P95 = min(μ + z₀.₉₅ × σ, max)
                         // Where z₀.₉₅ = 1.6448536269514722 (exact z-score for 95th percentile)
                         // The result is capped at the maximum observed value to ensure statistical consistency
-                        double? percentile95 = MonitorReportMapper.CalculateNormalP95(d.AvgValue, d.StdDevValue, d.MaxValue);
+                        var percentile95 = MonitorReportMapper.CalculateNormalP95(d.AvgValue, d.StdDevValue, d.MaxValue);
 
                         report.MetricData.Add(new MetricDataReportRow
                         {
@@ -619,7 +687,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                         });
                     }
 
-                    foreach (var alert in metric.Alerts ?? [])
+                    foreach(var alert in metric.Alerts ?? [])
                     {
                         var a = alert.Attributes;
                         report.Alerts.Add(new AlertReportRow

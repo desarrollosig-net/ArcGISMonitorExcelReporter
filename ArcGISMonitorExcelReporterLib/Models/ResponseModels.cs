@@ -127,11 +127,11 @@ namespace ArcGISMonitorExcelReporterLib.Models
         /// </summary>
         public override ComponentsResult Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (reader.TokenType == JsonTokenType.StartObject)
+            if(reader.TokenType == JsonTokenType.StartObject)
             {
                 using var doc = JsonDocument.ParseValue(ref reader);
                 var result = new ComponentsResult();
-                if (doc.RootElement.TryGetProperty("count", out var count) && count.ValueKind == JsonValueKind.Number)
+                if(doc.RootElement.TryGetProperty("count", out var count) && count.ValueKind == JsonValueKind.Number)
                 {
                     result.Count = count.GetInt32();
                 }
@@ -139,7 +139,7 @@ namespace ArcGISMonitorExcelReporterLib.Models
                 return result;
             }
 
-            if (reader.TokenType == JsonTokenType.StartArray)
+            if(reader.TokenType == JsonTokenType.StartArray)
             {
                 var items = JsonSerializer.Deserialize<List<ComponentFeature>>(ref reader, options) ?? [];
                 return new ComponentsResult { Items = items };
@@ -155,14 +155,14 @@ namespace ArcGISMonitorExcelReporterLib.Models
         /// </summary>
         public override void Write(Utf8JsonWriter writer, ComponentsResult value, JsonSerializerOptions options)
         {
-            if (value.Items.Count > 0)
+            if(value.Items.Count > 0)
             {
                 JsonSerializer.Serialize(writer, value.Items, options);
                 return;
             }
 
             writer.WriteStartObject();
-            if (value.Count.HasValue)
+            if(value.Count.HasValue)
             {
                 writer.WriteNumber("count", value.Count.Value);
             }

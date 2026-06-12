@@ -116,7 +116,7 @@ namespace ArcGISMonitorExcelReporterLib.Builders
         {
             var childIncludes = new List<CollectionIncludeSpec>();
 
-            if(includeLogs && fromUtc.HasValue && toUtc.HasValue)                               
+            if(includeLogs && fromUtc.HasValue && toUtc.HasValue)
             {
                 childIncludes.Add(new CollectionIncludeSpec
                 {
@@ -247,10 +247,10 @@ namespace ArcGISMonitorExcelReporterLib.Builders
                 ResultRecordCount = resultRecordCount,
                 ResultOffset = resultOffset,
                 Where = null, // No type filter - get ALL components
-                Including = 
+                Including =
                 [
-                    new CollectionIncludeSpec 
-                    { 
+                    new CollectionIncludeSpec
+                    {
                         Resource = "metrics"
                     }
                 ]
@@ -347,19 +347,19 @@ namespace ArcGISMonitorExcelReporterLib.Builders
                 ResultRecordCount = resultRecordCount,
                 ResultOffset = resultOffset,
                 Where = null, // No type filter - get ALL components
-                Including = 
+                Including =
                 [
-                    new CollectionIncludeSpec 
-                    { 
+                    new CollectionIncludeSpec
+                    {
                         Resource = "metrics",
-                        Including = 
+                        Including =
                         [
                             new CollectionIncludeSpec
                             {
                                 Resource = "metrics_data",
                                 Where = BetweenTimestamp("observed_at", fromUtc, toUtc),
                                 GroupbyFieldsForStatistics = "metric_id",
-                                OutStatistics = 
+                                OutStatistics =
                                 [
                                     new OutStatistic
                                     {
@@ -557,9 +557,9 @@ namespace ArcGISMonitorExcelReporterLib.Builders
             return string.IsNullOrWhiteSpace(ids)
                 ? throw new ArgumentException("Must specify at least one metricId.", nameof(metricIds))
                 : new MetricQueryRequest
-            {
-                Where = $"id in ({ids})",
-                Including =
+                {
+                    Where = $"id in ({ids})",
+                    Including =
                 [
                     new MetricIncludeSpec
                     {
@@ -576,7 +576,7 @@ namespace ArcGISMonitorExcelReporterLib.Builders
                         ]
                     }
                 ]
-            };
+                };
         }
 
         /// <summary>
@@ -733,7 +733,7 @@ namespace ArcGISMonitorExcelReporterLib.Builders
                 ReturnCountOnly = returnCountOnly,
                 ResultRecordCount = resultRecordCount,
                 ResultOffset = resultOffset,
-                Including = 
+                Including =
                 [
                     new ComponentIncludeSpec
                     {
@@ -812,19 +812,19 @@ namespace ArcGISMonitorExcelReporterLib.Builders
                 ReturnCountOnly = returnCountOnly,
                 ResultRecordCount = resultRecordCount,
                 ResultOffset = resultOffset,
-                Including = 
+                Including =
                 [
                     new ComponentIncludeSpec
                     {
                         Resource = "metrics",
-                        Including = 
+                        Including =
                         [
                             new ComponentIncludeSpec
                             {
                                 Resource = "metrics_data",
                                 Where = BetweenTimestamp("observed_at", fromUtc, toUtc),
                                 GroupByFieldsForStatistics = "metric_id",
-                                OutStatistics = 
+                                OutStatistics =
                                 [
                                     new OutStatistic
                                     {

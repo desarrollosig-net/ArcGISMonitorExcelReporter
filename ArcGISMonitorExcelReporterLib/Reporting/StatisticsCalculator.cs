@@ -65,7 +65,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         public static double? CalculatePercentile95(double? avgValue, double? stdDevValue, double? maxValue)
         {
             // Validate inputs
-            if (!avgValue.HasValue || !stdDevValue.HasValue || stdDevValue.Value <= 0)
+            if(!avgValue.HasValue || !stdDevValue.HasValue || stdDevValue.Value <= 0)
             {
                 return null;
             }

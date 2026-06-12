@@ -1,5 +1,6 @@
 using ArcGISMonitorExcelReporterLib.Client;
 using ArcGISMonitorExcelReporterLib.Models;
+
 using Serilog;
 
 using System.Linq;
@@ -187,11 +188,20 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
 
             var report = new MonitorExcelReport
             {
+                ServerUrl = request.ServerUrl,
+                CollectionName = request.CollectionNames.Count == 1 &&
+                                 !string.IsNullOrWhiteSpace(request.CollectionNames[0]) &&
+                                 request.CollectionNames[0].Trim() != "*"
+                    ? request.CollectionNames[0]
+                    : null,
+                Timezone = request.Timezone,
+                PastDays = request.PastDays,
+                PastHours = request.PastHours,
                 FromUtc = request.FromUtc,
                 ToUtc = request.ToUtc
             };
 
-            foreach (var collectionName in collectionsToQuery)
+            foreach(var collectionName in collectionsToQuery)
             {
                 await ProcessCollectionAsync(report, collectionName, typesToFilter, isAllTypes, request, cancellationToken).ConfigureAwait(false);
             }
@@ -199,9 +209,9 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
             Log.Information("Applying metric filters...");
             ApplyMetricFilters(report, request);
 
-            if (request.IncludeMetricTimeSeries && report.Metrics.Count > 0)
+            if(request.IncludeMetricTimeSeries && report.Metrics.Count > 0)
             {
-                await FetchMetricTimeSeriesAsync(report, request, cancellationToken).ConfigureAwait(false);
+                await FetchMetricTimeSeriesAsync(report, request, cancellationToken: cancellationToken).ConfigureAwait(false);
             }
 
             Log.Information("Report build completed: {Collections} collections, {Components} components, {Metrics} metrics, {Alerts} alerts, {DataPoints} data points",
@@ -225,7 +235,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                                    (string.IsNullOrWhiteSpace(request.CollectionNames[0]) ||
                                     request.CollectionNames[0].Trim() == "*"));
 
-            if (!isAllCollections && request.CollectionNames.Count == 0)
+            if(!isAllCollections && request.CollectionNames.Count == 0)
             {
                 throw new ArgumentException("Must specify at least one collection or use \"*\" for all collections.", nameof(request));
             }
@@ -235,12 +245,12 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                              (string.IsNullOrWhiteSpace(request.ComponentTypes[0]) ||
                               request.ComponentTypes[0].Trim() == "*"));
 
-            if (!isAllTypes && request.ComponentTypes.Count == 0)
+            if(!isAllTypes && request.ComponentTypes.Count == 0)
             {
                 throw new ArgumentException("Must specify at least one component type or use \"*\" for all types.", nameof(request));
             }
 
-            if (request.FromUtc >= request.ToUtc)
+            if(request.FromUtc >= request.ToUtc)
             {
                 throw new ArgumentException("FromUtc must be less than ToUtc.", nameof(request));
             }
@@ -318,7 +328,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// </remarks>
         private static void LogCollectionQuery(string collectionName)
         {
-            if (collectionName == "*" || string.IsNullOrWhiteSpace(collectionName))
+            if(collectionName == "*" || string.IsNullOrWhiteSpace(collectionName))
             {
                 Log.Information("Fetching all configured components");
             }
@@ -346,7 +356,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         {
             var allComponents = new List<ComponentFeature>();
 
-            if (request.MetricNameLikes.Count == 0)
+            if(request.MetricNameLikes.Count == 0)
             {
                 allComponents.AddRange(await FetchAllComponentsWithMetricsAsync(collectionName, request, cancellationToken).ConfigureAwait(false));
             }
@@ -376,7 +386,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
             MonitorReportRequest request,
             CancellationToken cancellationToken)
         {
-            if (collectionName == "*" || string.IsNullOrWhiteSpace(collectionName))
+            if(collectionName == "*" || string.IsNullOrWhiteSpace(collectionName))
             {
                 Log.Debug("Fetching all components with all metrics");
             }
@@ -386,10 +396,10 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
             }
 
             return await _queries.GetAllComponentsWithMetricsAsync(
-                collectionName, 
-                request.FromUtc, 
-                request.ToUtc, 
-                request.PageSize, 
+                collectionName,
+                request.FromUtc,
+                request.ToUtc,
+                request.PageSize,
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -412,7 +422,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
             Log.Debug("Fetching components with specific metrics: {Metrics}", string.Join(", ", request.MetricNameLikes));
 
             var components = new List<ComponentFeature>();
-            foreach (var metricNameLike in request.MetricNameLikes.Distinct(StringComparer.OrdinalIgnoreCase))
+            foreach(var metricNameLike in request.MetricNameLikes.Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 components.AddRange(await _queries.GetComponentsWithMetricStatsAsync(
                     collectionName,
@@ -443,7 +453,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
             List<string> typesToFilter,
             bool isAllTypes)
         {
-            if (!isAllTypes && typesToFilter.Count > 0)
+            if(!isAllTypes && typesToFilter.Count > 0)
             {
                 var originalCount = components.Count;
                 components = [.. components.Where(c => typesToFilter.Contains(c.Attributes.Type, StringComparer.OrdinalIgnoreCase))];
@@ -474,7 +484,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 .GroupBy(c => c.Attributes.Type)
                 .OrderBy(g => g.Key);
 
-            foreach (var typeGroup in componentsByType)
+            foreach(var typeGroup in componentsByType)
             {
                 var componentType = typeGroup.Key ?? string.Empty;
                 var components = typeGroup.ToList();
@@ -505,7 +515,8 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         private async Task FetchMetricTimeSeriesAsync(
             MonitorExcelReport report,
             MonitorReportRequest request,
-            CancellationToken cancellationToken)
+            int batchSize = 50,
+            CancellationToken cancellationToken = default)
         {
             Log.Information("Fetching metric time series data...");
 
@@ -516,46 +527,56 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 .Take(request.MaxMetricIdsForTimeSeries ?? int.MaxValue)
                 .ToList();
 
-            if (metricIds.Count == 0)
+            if(metricIds.Count == 0)
             {
                 return;
             }
 
             Log.Debug("Requesting time series for {Count} metrics", metricIds.Count);
 
+            const string bucket = "observed_at:15m";
+
             var series = await _queries.GetMetricTimeSeriesAsync(
                 metricIds,
                 request.FromUtc,
                 request.ToUtc,
-                request.MetricBucket,
+                bucket,
+                batchSize,
                 cancellationToken).ConfigureAwait(false);
 
-            var dataPointCount = ProcessMetricTimeSeries(report, series);
+            var rawRows = ProcessMetricTimeSeries(report, series);
+            Log.Debug("Raw time series: {RawCount} data points before downsampling", rawRows.Count);
 
-            Log.Information("Retrieved {DataPoints} time series data points", dataPointCount);
+            var (downsampledRows, effectiveBucket) = DownsampleMetricTimeSeries(rawRows);
+            report.MetricDataBucket = effectiveBucket;
+            report.TimeSeriesMetricData.AddRange(downsampledRows);
+
+            Log.Information("Retrieved {DataPoints} time series data points (downsampled from {RawCount}, bucket: {Bucket})",
+                downsampledRows.Count, rawRows.Count, effectiveBucket);
         }
 
         /// <summary>
         /// Processes metric time series data and adds it to the report.
         /// </summary>
-        /// <param name="report">The report to add time series data to.</param>
+        /// <param name="report">The report used to resolve collection names.</param>
         /// <param name="series">The time series data returned from the API.</param>
-        /// <returns>The number of data points processed.</returns>
+        /// <returns>The list of time series data points parsed from the API response.</returns>
         /// <remarks>
         /// Extracts time series data points from the API response and creates MetricDataReportRow entries.
+        /// The returned list contains only the new time series rows and must be added to the report separately.
         /// </remarks>
-        private static int ProcessMetricTimeSeries(MonitorExcelReport report, dynamic series)
+        private static List<MetricDataReportRow> ProcessMetricTimeSeries(MonitorExcelReport report, dynamic series)
         {
-            var dataPointCount = 0;
-            foreach (var metric in series.Features)
+            var rows = new List<MetricDataReportRow>();
+            foreach(var metric in series.Features)
             {
                 var metricAttributes = metric.Attributes;
                 var metricsData = metric.MetricsData ?? Enumerable.Empty<dynamic>();
-                
-                foreach (var data in metricsData)
+
+                foreach(var data in metricsData)
                 {
                     var d = data.Attributes;
-                    report.MetricData.Add(new MetricDataReportRow
+                    rows.Add(new MetricDataReportRow
                     {
                         CollectionName = ResolveCollectionName(report, metricAttributes.Id),
                         MetricId = d.MetricId ?? metricAttributes.Id,
@@ -571,15 +592,175 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                         SumValue = d.SumValue,
                         CountValue = d.CountValue
                     });
-                    dataPointCount++;
                 }
             }
 
-            return dataPointCount;
+            return rows;
         }
 
         /// <summary>
-        /// Builds a report and saves it directly to an Excel file.
+        /// Downsamples the metric time series data in the report to approximately
+        /// <paramref name="targetDataPoints"/> points per metric series by re-aggregating
+        /// raw 15-minute buckets into coarser intervals.
+        /// </summary>
+        /// <param name="timeSeries">The raw time series rows to downsample (must not contain aggregated stats from the mapper).</param>
+        /// <param name="targetDataPoints">Desired maximum number of data points per series. Default is 400.</param>
+        /// <remarks>
+        /// Selects the finest interval from the progression 15m → 30m → 1h → 6h → 12h → 24h
+        /// such that the resulting point count does not exceed <paramref name="targetDataPoints"/>.
+        /// Series that already have fewer points than the target are left unchanged.
+        /// Aggregation preserves min, max, weighted average, combined standard deviation,
+        /// recalculated P95, sum, and count.
+        /// </remarks>
+        /// <returns>A tuple with the downsampled rows and the bucket label effectively applied (e.g. "15m", "1h").</returns>
+        private static (List<MetricDataReportRow> Rows, string Bucket) DownsampleMetricTimeSeries(
+            List<MetricDataReportRow> timeSeries,
+            int targetDataPoints = 400)
+        {
+            (int Minutes, string Label)[] buckets =
+            [
+                (15,   "15m"),
+                (30,   "30m"),
+                (60,   "1h"),
+                (120,  "2h"),
+                (240,  "4h"),
+                (360,  "6h"),
+                (720,  "12h"),
+                (1440, "24h")
+            ];
+
+            var effectiveBucket = buckets[0].Label;
+
+            if(timeSeries.Count == 0)
+            {
+                return (timeSeries, effectiveBucket);
+            }
+
+            var result = new List<MetricDataReportRow>(timeSeries.Count);
+
+            foreach(var series in timeSeries.Where(d => d.ObservedAt.HasValue).GroupBy(d => d.MetricId))
+            {
+                var points = series.OrderBy(d => d.ObservedAt).ToList();
+
+                if(points.Count <= targetDataPoints)
+                {
+                    result.AddRange(points);
+                    continue;
+                }
+
+                var durationMinutes = (points[^1].ObservedAt!.Value - points[0].ObservedAt!.Value).TotalMinutes;
+                var idealBucketMinutes = durationMinutes / targetDataPoints;
+
+                var bucketMinutes = buckets[^1].Minutes;
+                var bucketLabel = buckets[^1].Label;
+                foreach(var (minutes, label) in buckets)
+                {
+                    if(minutes >= idealBucketMinutes)
+                    {
+                        bucketMinutes = minutes;
+                        bucketLabel = label;
+                        break;
+                    }
+                }
+
+                // Track the coarsest bucket applied across all series
+                if(Array.FindIndex(buckets, b => b.Label == bucketLabel) >
+                   Array.FindIndex(buckets, b => b.Label == effectiveBucket))
+                {
+                    effectiveBucket = bucketLabel;
+                }
+
+                result.AddRange(points
+                    .GroupBy(d => TruncateToBucket(d.ObservedAt!.Value, bucketMinutes))
+                    .Select(g => AggregateBucket(g.Key, g.ToList()))
+                    .OrderBy(d => d.ObservedAt));
+            }
+
+            // Pass through points without a timestamp unchanged
+            result.AddRange(timeSeries.Where(d => !d.ObservedAt.HasValue));
+
+            return (result, effectiveBucket);
+        }
+
+        /// <summary>
+        /// Truncates a timestamp to the nearest lower boundary of the given bucket interval.
+        /// </summary>
+        private static DateTimeOffset TruncateToBucket(DateTimeOffset dt, int bucketMinutes)
+        {
+            var totalMinutes = (long)(dt.UtcDateTime - DateTime.UnixEpoch).TotalMinutes;
+            return DateTimeOffset.UnixEpoch.AddMinutes((totalMinutes / bucketMinutes) * bucketMinutes);
+        }
+
+        /// <summary>
+        /// Aggregates a list of data points within a single time bucket into one representative row.
+        /// </summary>
+        /// <remarks>
+        /// Uses weighted average for <see cref="MetricDataReportRow.AvgValue"/> and the parallel
+        /// variance formula for <see cref="MetricDataReportRow.StdDevValue"/>.
+        /// <see cref="MetricDataReportRow.Percentile95Value"/> is recalculated from the combined statistics.
+        /// </remarks>
+        private static MetricDataReportRow AggregateBucket(DateTimeOffset bucketTime, List<MetricDataReportRow> points)
+        {
+            var first = points[0];
+
+            double? avgValue = null;
+            double? stdDevValue = null;
+            double? countValue = null;
+            double? sumValue = null;
+
+            var countedPoints = points.Where(p => p.AvgValue.HasValue && p.CountValue is > 0).ToList();
+            if(countedPoints.Count > 0)
+            {
+                var totalCount = countedPoints.Sum(p => p.CountValue!.Value);
+                avgValue = countedPoints.Sum(p => p.AvgValue!.Value * p.CountValue!.Value) / totalCount;
+
+                // Parallel variance: Σ count_i × (σ_i² + (μ_i − μ)²) / totalCount
+                var combinedVariance = countedPoints.Sum(p =>
+                {
+                    var variance = p.StdDevValue.HasValue ? p.StdDevValue.Value * p.StdDevValue.Value : 0.0;
+                    var meanDiff = p.AvgValue!.Value - avgValue.Value;
+                    return p.CountValue!.Value * (variance + meanDiff * meanDiff);
+                }) / totalCount;
+
+                stdDevValue = Math.Sqrt(combinedVariance);
+                countValue = totalCount;
+            }
+            else
+            {
+                // Fallback: simple average when count is not available
+                var validAvg = points.Where(p => p.AvgValue.HasValue).ToList();
+                if(validAvg.Count > 0)
+                {
+                    avgValue = validAvg.Average(p => p.AvgValue!.Value);
+                }
+                countValue = points.Sum(p => p.CountValue);
+            }
+
+            if(points.Any(p => p.SumValue.HasValue))
+            {
+                sumValue = points.Sum(p => p.SumValue ?? 0.0);
+            }
+
+            var maxValue = points.Any(p => p.MaxValue.HasValue) ? points.Max(p => p.MaxValue) : null;
+            var minValue = points.Any(p => p.MinValue.HasValue) ? points.Min(p => p.MinValue) : null;
+
+            return new MetricDataReportRow
+            {
+                CollectionName = first.CollectionName,
+                MetricId = first.MetricId,
+                MetricName = first.MetricName,
+                ComponentId = first.ComponentId,
+                ComponentName = first.ComponentName,
+                ObservedAt = bucketTime,
+                MinValue = minValue,
+                MaxValue = maxValue,
+                AvgValue = avgValue,
+                StdDevValue = stdDevValue,
+                Percentile95Value = CalculateNormalP95(avgValue, stdDevValue, maxValue),
+                SumValue = sumValue,
+                CountValue = countValue
+            };
+        }
         /// </summary>
         /// <param name="request">The report request specifying collections, types, time range, and filters.</param>
         /// <param name="outputPath">Full path where the Excel file will be saved.</param>
@@ -679,6 +860,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
             report.Metrics = [.. report.Metrics.Where(m => keptMetricIds.Contains(m.MetricId))];
 
             report.MetricData = [.. report.MetricData.Where(d => keptMetricIds.Contains(d.MetricId))];
+            report.TimeSeriesMetricData = [.. report.TimeSeriesMetricData.Where(d => keptMetricIds.Contains(d.MetricId))];
 
             report.Alerts = [.. report.Alerts.Where(a => a.MetricId.HasValue && keptMetricIds.Contains(a.MetricId.Value))];
 
@@ -690,7 +872,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 .GroupBy(a => (a.CollectionName, ComponentId: a.ComponentId!.Value))
                 .ToDictionary(g => g.Key, g => g.Count());
 
-            foreach (var component in report.Components)
+            foreach(var component in report.Components)
             {
                 component.MetricCount = metricsByComponent.GetValueOrDefault((component.CollectionName, component.ComponentId));
                 component.AlertCount = alertsByComponent.GetValueOrDefault((component.CollectionName, component.ComponentId));
@@ -711,7 +893,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 })];
         }
 
-        /// <summary>
+        ///
         /// Resolves the collection name for a given metric ID by searching the report's metrics.
         /// </summary>
         /// <param name="report">The report containing metrics.</param>
@@ -776,14 +958,20 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
             // Z-score for 95th percentile in a standard normal distribution
             const double Z_95 = 1.6448536269514722;
 
-            if (!mean.HasValue || double.IsNaN(mean.Value))
+            if(!mean.HasValue || double.IsNaN(mean.Value))
+            {
                 return null;
+            }
 
-            if (!stdDev.HasValue || double.IsNaN(stdDev.Value) || stdDev.Value < 0)
+            if(!stdDev.HasValue || double.IsNaN(stdDev.Value) || stdDev.Value < 0)
+            {
                 return null;
+            }
 
-            if (!maxValue.HasValue || double.IsNaN(maxValue.Value))
+            if(!maxValue.HasValue || double.IsNaN(maxValue.Value))
+            {
                 return null;
+            }
 
             // P95 = μ + z₀.₉₅ × σ
             var theoreticalP95 = mean.Value + (Z_95 * stdDev.Value);
