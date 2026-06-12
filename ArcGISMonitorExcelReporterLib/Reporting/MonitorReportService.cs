@@ -1,6 +1,9 @@
 using ArcGISMonitorExcelReporterLib.Client;
 using ArcGISMonitorExcelReporterLib.Models;
+
 using Serilog;
+
+using System.Linq;
 
 namespace ArcGISMonitorExcelReporterLib.Reporting
 {
@@ -48,30 +51,25 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
     /// Console.WriteLine($"Report: {report.Components.Count} components, {report.Metrics.Count} metrics");
     /// </code>
     /// </example>
-    public sealed class MonitorReportService
+    /// <remarks>
+    /// Initializes a new instance of the <see cref="MonitorReportService"/> class.
+    /// </remarks>
+    /// <param name="queries">The query service for accessing ArcGIS Monitor API.</param>
+    /// <remarks>
+    /// The provided query service must be configured with an authenticated client.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var client = new ArcGisMonitorClient(baseUri);
+    /// await client.AuthenticateAsync(username, password);
+    /// 
+    /// var queryService = new ArcGisMonitorQueryService(client);
+    /// var reportService = new MonitorReportService(queryService);
+    /// </code>
+    /// </example>
+    public sealed class MonitorReportService(ArcGisMonitorQueryService queries)
     {
-        private readonly ArcGisMonitorQueryService _queries;
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="MonitorReportService"/> class.
-        /// </summary>
-        /// <param name="queries">The query service for accessing ArcGIS Monitor API.</param>
-        /// <remarks>
-        /// The provided query service must be configured with an authenticated client.
-        /// </remarks>
-        /// <example>
-        /// <code>
-        /// var client = new ArcGisMonitorClient(baseUri);
-        /// await client.AuthenticateAsync(username, password);
-        /// 
-        /// var queryService = new ArcGisMonitorQueryService(client);
-        /// var reportService = new MonitorReportService(queryService);
-        /// </code>
-        /// </example>
-        public MonitorReportService(ArcGisMonitorQueryService queries)
-        {
-            _queries = queries;
-        }
+        private readonly ArcGisMonitorQueryService _queries = queries;
 
         /// <summary>
         /// Builds a comprehensive ArcGIS Monitor report based on the provided request parameters.
@@ -184,143 +182,36 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         {
             ArgumentNullException.ThrowIfNull(request);
 
-            // Allow empty collection names or "*" to query all collections
-            var isAllCollections = request.CollectionNames.Count == 0 || 
-                                  (request.CollectionNames.Count == 1 && 
-                                   (string.IsNullOrWhiteSpace(request.CollectionNames[0]) || 
-                                    request.CollectionNames[0].Trim() == "*"));
+            ValidateRequest(request);
 
-            if (!isAllCollections && request.CollectionNames.Count == 0)
-                throw new ArgumentException("Must specify at least one collection or use \"*\" for all collections.", nameof(request));
-
-            if (request.ComponentTypes.Count == 0)
-                throw new ArgumentException("Must specify at least one component type.", nameof(request));
-            if (request.FromUtc >= request.ToUtc)
-                throw new ArgumentException("FromUtc must be less than ToUtc.", nameof(request));
-
-            // Normalize collection names: if querying all, use a single entry with "*" or null
-            var collectionsToQuery = isAllCollections 
-                ? new List<string> { "*" } 
-                : request.CollectionNames.Where(c => !string.IsNullOrWhiteSpace(c)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-
-            Log.Information("Building report for {CollectionCount} collections and {TypeCount} component types", 
-                isAllCollections ? "all" : collectionsToQuery.Count.ToString(), request.ComponentTypes.Count);
+            var (collectionsToQuery, typesToFilter, isAllTypes) = NormalizeRequestParameters(request);
 
             var report = new MonitorExcelReport
             {
+                ServerUrl = request.ServerUrl,
+                CollectionName = request.CollectionNames.Count == 1 &&
+                                 !string.IsNullOrWhiteSpace(request.CollectionNames[0]) &&
+                                 request.CollectionNames[0].Trim() != "*"
+                    ? request.CollectionNames[0]
+                    : null,
+                Timezone = request.Timezone,
+                PastDays = request.PastDays,
+                PastHours = request.PastHours,
                 FromUtc = request.FromUtc,
                 ToUtc = request.ToUtc
             };
 
-            foreach (var collectionName in collectionsToQuery)
+            foreach(var collectionName in collectionsToQuery)
             {
-                foreach (var componentType in request.ComponentTypes.Distinct(StringComparer.OrdinalIgnoreCase))
-                {
-                    var displayCollection = (collectionName == "*" || string.IsNullOrWhiteSpace(collectionName)) ? "All Collections" : collectionName;
-                    Log.Information("Querying collection: {Collection}, component type: {Type}", displayCollection, componentType);
-
-                    var components = new List<ComponentFeature>();
-
-                    if (request.MetricNameLikes.Count == 0)
-                    {
-                        Log.Debug("Fetching all metrics for {Collection}/{Type}", displayCollection, componentType);
-                        components.AddRange(await _queries.GetComponentsWithAllMetricsAsync(
-                            collectionName,
-                            componentType,
-                            request.PageSize,
-                            cancellationToken).ConfigureAwait(false));
-                    }
-                    else
-                    {
-                        Log.Debug("Fetching specific metrics: {Metrics}", string.Join(", ", request.MetricNameLikes));
-                        foreach (var metricNameLike in request.MetricNameLikes.Distinct(StringComparer.OrdinalIgnoreCase))
-                        {
-                            components.AddRange(await _queries.GetComponentsWithMetricStatsAsync(
-                                collectionName,
-                                componentType,
-                                metricNameLike,
-                                request.FromUtc,
-                                request.ToUtc,
-                                request.PageSize,
-                                cancellationToken).ConfigureAwait(false));
-                        }
-
-                        components = components
-                            .GroupBy(c => c.Attributes.Id)
-                            .Select(g => MergeComponentMetrics(g))
-                            .ToList();
-                    }
-
-                    Log.Information("Retrieved {Count} components for {Collection}/{Type}", 
-                        components.Count, displayCollection, componentType);
-
-                    // Use the actual collection name from components or "All Collections" if querying all
-                    var effectiveCollectionName = displayCollection;
-                    MonitorReportMapper.AddComponentTree(report, effectiveCollectionName, components);
-
-                    report.Collections.Add(new CollectionReportRow(
-                        effectiveCollectionName,
-                        componentType,
-                        components.Count,
-                        components.SelectMany(c => c.Metrics ?? []).Count(),
-                        components.SelectMany(c => c.Metrics ?? []).SelectMany(m => m.Alerts ?? []).Count()));
-                }
+                await ProcessCollectionAsync(report, collectionName, typesToFilter, isAllTypes, request, cancellationToken).ConfigureAwait(false);
             }
 
             Log.Information("Applying metric filters...");
             ApplyMetricFilters(report, request);
 
-            if (request.IncludeMetricTimeSeries && report.Metrics.Count > 0)
+            if(request.IncludeMetricTimeSeries && report.Metrics.Count > 0)
             {
-                Log.Information("Fetching metric time series data...");
-
-                var metricIds = report.Metrics
-                    .Select(m => m.MetricId)
-                    .Where(id => id > 0)
-                    .Distinct()
-                    .Take(request.MaxMetricIdsForTimeSeries ?? int.MaxValue)
-                    .ToList();
-
-                if (metricIds.Count > 0)
-                {
-                    Log.Debug("Requesting time series for {Count} metrics", metricIds.Count);
-
-                    var series = await _queries.GetMetricTimeSeriesAsync(
-                        metricIds,
-                        request.FromUtc,
-                        request.ToUtc,
-                        request.MetricBucket,
-                        cancellationToken).ConfigureAwait(false);
-
-                    var dataPointCount = 0;
-                    foreach (var metric in series.Features)
-                    {
-                        var metricAttributes = metric.Attributes;
-                        foreach (var data in metric.MetricsData ?? [])
-                        {
-                            var d = data.Attributes;
-                            report.MetricData.Add(new MetricDataReportRow
-                            {
-                                CollectionName = ResolveCollectionName(report, metricAttributes.Id),
-                                MetricId = d.MetricId ?? metricAttributes.Id,
-                                MetricName = metricAttributes.Name,
-                                ComponentId = metricAttributes.ComponentId,
-                                ComponentName = metricAttributes.ComponentName,
-                                ObservedAt = d.ObservedAt,
-                                MinValue = d.MinValue,
-                                MaxValue = d.MaxValue,
-                                AvgValue = d.AvgValue,
-                                StdDevValue = d.StdDevValue,
-                                Percentile95Value = d.Percentile95Value,
-                                SumValue = d.SumValue,
-                                CountValue = d.CountValue
-                            });
-                            dataPointCount++;
-                        }
-                    }
-
-                    Log.Information("Retrieved {DataPoints} time series data points", dataPointCount);
-                }
+                await FetchMetricTimeSeriesAsync(report, request, cancellationToken: cancellationToken).ConfigureAwait(false);
             }
 
             Log.Information("Report build completed: {Collections} collections, {Components} components, {Metrics} metrics, {Alerts} alerts, {DataPoints} data points",
@@ -330,7 +221,546 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         }
 
         /// <summary>
-        /// Builds a report and saves it directly to an Excel file.
+        /// Validates the report request parameters.
+        /// </summary>
+        /// <param name="request">The request to validate.</param>
+        /// <exception cref="ArgumentException">Thrown when validation fails.</exception>
+        /// <remarks>
+        /// Validates that collections, component types, and date range are properly specified.
+        /// </remarks>
+        private static void ValidateRequest(MonitorReportRequest request)
+        {
+            var isAllCollections = request.CollectionNames.Count == 0 ||
+                                  (request.CollectionNames.Count == 1 &&
+                                   (string.IsNullOrWhiteSpace(request.CollectionNames[0]) ||
+                                    request.CollectionNames[0].Trim() == "*"));
+
+            if(!isAllCollections && request.CollectionNames.Count == 0)
+            {
+                throw new ArgumentException("Must specify at least one collection or use \"*\" for all collections.", nameof(request));
+            }
+
+            var isAllTypes = request.ComponentTypes.Count == 0 ||
+                            (request.ComponentTypes.Count == 1 &&
+                             (string.IsNullOrWhiteSpace(request.ComponentTypes[0]) ||
+                              request.ComponentTypes[0].Trim() == "*"));
+
+            if(!isAllTypes && request.ComponentTypes.Count == 0)
+            {
+                throw new ArgumentException("Must specify at least one component type or use \"*\" for all types.", nameof(request));
+            }
+
+            if(request.FromUtc >= request.ToUtc)
+            {
+                throw new ArgumentException("FromUtc must be less than ToUtc.", nameof(request));
+            }
+        }
+
+        /// <summary>
+        /// Normalizes request parameters for collection names and component types.
+        /// </summary>
+        /// <param name="request">The request containing parameters to normalize.</param>
+        /// <returns>A tuple containing normalized collections to query, types to filter, and whether all types are requested.</returns>
+        /// <remarks>
+        /// Converts wildcard patterns and empty lists into normalized lists for processing.
+        /// Empty or "*" values are interpreted as "all items".
+        /// </remarks>
+        private static (List<string> collectionsToQuery, List<string> typesToFilter, bool isAllTypes) NormalizeRequestParameters(MonitorReportRequest request)
+        {
+            var isAllCollections = request.CollectionNames.Count == 0 ||
+                                  (request.CollectionNames.Count == 1 &&
+                                   (string.IsNullOrWhiteSpace(request.CollectionNames[0]) ||
+                                    request.CollectionNames[0].Trim() == "*"));
+
+            var isAllTypes = request.ComponentTypes.Count == 0 ||
+                            (request.ComponentTypes.Count == 1 &&
+                             (string.IsNullOrWhiteSpace(request.ComponentTypes[0]) ||
+                              request.ComponentTypes[0].Trim() == "*"));
+
+            var collectionsToQuery = isAllCollections
+                ? ["*"]
+                : request.CollectionNames.Where(c => !string.IsNullOrWhiteSpace(c)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+            var typesToFilter = isAllTypes
+                ? []
+                : request.ComponentTypes.Where(t => !string.IsNullOrWhiteSpace(t)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+            return (collectionsToQuery, typesToFilter, isAllTypes);
+        }
+
+        /// <summary>
+        /// Processes a single collection, fetching components and adding them to the report.
+        /// </summary>
+        /// <param name="report">The report to populate.</param>
+        /// <param name="collectionName">The collection name to process.</param>
+        /// <param name="typesToFilter">The list of component types to filter by.</param>
+        /// <param name="isAllTypes">Whether all types should be included.</param>
+        /// <param name="request">The original report request.</param>
+        /// <param name="cancellationToken">Cancellation token for async operation.</param>
+        /// <remarks>
+        /// This method orchestrates fetching, filtering, and processing components for a single collection.
+        /// </remarks>
+        private async Task ProcessCollectionAsync(
+            MonitorExcelReport report,
+            string collectionName,
+            List<string> typesToFilter,
+            bool isAllTypes,
+            MonitorReportRequest request,
+            CancellationToken cancellationToken)
+        {
+            LogCollectionQuery(collectionName);
+
+            var allComponents = await FetchComponentsForCollectionAsync(collectionName, request, cancellationToken).ConfigureAwait(false);
+
+            Log.Information("Retrieved {Count} total components for {Collection}", allComponents.Count, collectionName);
+
+            allComponents = FilterComponentsByType(allComponents, typesToFilter, isAllTypes);
+
+            ProcessComponentsByType(report, collectionName, allComponents);
+        }
+
+        /// <summary>
+        /// Logs the collection query operation.
+        /// </summary>
+        /// <param name="collectionName">The collection name being queried.</param>
+        /// <remarks>
+        /// Logs different messages depending on whether all collections or a specific collection is being queried.
+        /// </remarks>
+        private static void LogCollectionQuery(string collectionName)
+        {
+            if(collectionName == "*" || string.IsNullOrWhiteSpace(collectionName))
+            {
+                Log.Information("Fetching all configured components");
+            }
+            else
+            {
+                Log.Information("Querying collection: {Collection}, fetching all configured components", collectionName);
+            }
+        }
+
+        /// <summary>
+        /// Fetches all components for a specific collection.
+        /// </summary>
+        /// <param name="collectionName">The collection name to query.</param>
+        /// <param name="request">The report request containing query parameters.</param>
+        /// <param name="cancellationToken">Cancellation token for async operation.</param>
+        /// <returns>A list of component features with their metrics.</returns>
+        /// <remarks>
+        /// If metric name patterns are specified, fetches only matching metrics and merges duplicate components.
+        /// Otherwise, fetches all components with all metrics.
+        /// </remarks>
+        private async Task<List<ComponentFeature>> FetchComponentsForCollectionAsync(
+            string collectionName,
+            MonitorReportRequest request,
+            CancellationToken cancellationToken)
+        {
+            var allComponents = new List<ComponentFeature>();
+
+            if(request.MetricNameLikes.Count == 0)
+            {
+                allComponents.AddRange(await FetchAllComponentsWithMetricsAsync(collectionName, request, cancellationToken).ConfigureAwait(false));
+            }
+            else
+            {
+                allComponents.AddRange(await FetchComponentsWithSpecificMetricsAsync(collectionName, request, cancellationToken).ConfigureAwait(false));
+                allComponents = [.. allComponents
+                    .GroupBy(c => c.Attributes.Id)
+                    .Select(MergeComponentMetrics)];
+            }
+
+            return allComponents;
+        }
+
+        /// <summary>
+        /// Fetches all components with all their metrics for a collection.
+        /// </summary>
+        /// <param name="collectionName">The collection name to query.</param>
+        /// <param name="request">The report request containing query parameters including date range.</param>
+        /// <param name="cancellationToken">Cancellation token for async operation.</param>
+        /// <returns>A list of all components with their metrics.</returns>
+        /// <remarks>
+        /// This method is used when no specific metric filters are applied.
+        /// </remarks>
+        private async Task<List<ComponentFeature>> FetchAllComponentsWithMetricsAsync(
+            string collectionName,
+            MonitorReportRequest request,
+            CancellationToken cancellationToken)
+        {
+            if(collectionName == "*" || string.IsNullOrWhiteSpace(collectionName))
+            {
+                Log.Debug("Fetching all components with all metrics");
+            }
+            else
+            {
+                Log.Debug("Fetching all components with all metrics for {Collection}", collectionName);
+            }
+
+            return await _queries.GetAllComponentsWithMetricsAsync(
+                collectionName,
+                request.FromUtc,
+                request.ToUtc,
+                request.PageSize,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Fetches components that have specific metrics matching the provided patterns.
+        /// </summary>
+        /// <param name="collectionName">The collection name to query.</param>
+        /// <param name="request">The report request containing metric name patterns.</param>
+        /// <param name="cancellationToken">Cancellation token for async operation.</param>
+        /// <returns>A list of components that have metrics matching the specified patterns.</returns>
+        /// <remarks>
+        /// This method queries the API once for each metric pattern and returns all matching components.
+        /// Components may appear multiple times if they have multiple matching metrics.
+        /// </remarks>
+        private async Task<List<ComponentFeature>> FetchComponentsWithSpecificMetricsAsync(
+            string collectionName,
+            MonitorReportRequest request,
+            CancellationToken cancellationToken)
+        {
+            Log.Debug("Fetching components with specific metrics: {Metrics}", string.Join(", ", request.MetricNameLikes));
+
+            var components = new List<ComponentFeature>();
+            foreach(var metricNameLike in request.MetricNameLikes.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                components.AddRange(await _queries.GetComponentsWithMetricStatsAsync(
+                    collectionName,
+                    "*",
+                    metricNameLike,
+                    request.FromUtc,
+                    request.ToUtc,
+                    request.PageSize,
+                    cancellationToken).ConfigureAwait(false));
+            }
+
+            return components;
+        }
+
+        /// <summary>
+        /// Filters components by their type based on the requested types.
+        /// </summary>
+        /// <param name="components">The list of components to filter.</param>
+        /// <param name="typesToFilter">The list of component types to keep.</param>
+        /// <param name="isAllTypes">Whether all types should be included (no filtering).</param>
+        /// <returns>A filtered list of components matching the requested types.</returns>
+        /// <remarks>
+        /// If <paramref name="isAllTypes"/> is true, no filtering is performed.
+        /// Otherwise, only components with types in <paramref name="typesToFilter"/> are kept.
+        /// </remarks>
+        private static List<ComponentFeature> FilterComponentsByType(
+            List<ComponentFeature> components,
+            List<string> typesToFilter,
+            bool isAllTypes)
+        {
+            if(!isAllTypes && typesToFilter.Count > 0)
+            {
+                var originalCount = components.Count;
+                components = [.. components.Where(c => typesToFilter.Contains(c.Attributes.Type, StringComparer.OrdinalIgnoreCase))];
+
+                Log.Information("Filtered to {Count} components matching requested types (excluded {Excluded})",
+                    components.Count, originalCount - components.Count);
+            }
+
+            return components;
+        }
+
+        /// <summary>
+        /// Processes components grouped by type and adds them to the report.
+        /// </summary>
+        /// <param name="report">The report to populate.</param>
+        /// <param name="collectionName">The collection name the components belong to.</param>
+        /// <param name="allComponents">The list of components to process.</param>
+        /// <remarks>
+        /// Groups components by type, adds them to the report using the mapper,
+        /// and creates collection summary rows.
+        /// </remarks>
+        private static void ProcessComponentsByType(
+            MonitorExcelReport report,
+            string collectionName,
+            List<ComponentFeature> allComponents)
+        {
+            var componentsByType = allComponents
+                .GroupBy(c => c.Attributes.Type)
+                .OrderBy(g => g.Key);
+
+            foreach(var typeGroup in componentsByType)
+            {
+                var componentType = typeGroup.Key ?? string.Empty;
+                var components = typeGroup.ToList();
+
+                Log.Debug("Processing {Count} components of type {Type}", components.Count, componentType);
+
+                MonitorReportMapper.AddComponentTree(report, collectionName, components);
+
+                report.Collections.Add(new CollectionReportRow(
+                    collectionName,
+                    ComponentType: componentType,
+                    components.Count,
+                    components.SelectMany(c => c.Metrics ?? []).Count(),
+                    components.SelectMany(c => c.Metrics ?? []).SelectMany(m => m.Alerts ?? []).Count()));
+            }
+        }
+
+        /// <summary>
+        /// Fetches time series data for metrics in the report.
+        /// </summary>
+        /// <param name="report">The report containing metrics to fetch time series for.</param>
+        /// <param name="request">The report request with time range and bucket parameters.</param>
+        /// <param name="cancellationToken">Cancellation token for async operation.</param>
+        /// <remarks>
+        /// Fetches time-bucketed metric data for up to <see cref="MonitorReportRequest.MaxMetricIdsForTimeSeries"/> metrics.
+        /// The fetched data is added to the report's MetricData collection.
+        /// </remarks>
+        private async Task FetchMetricTimeSeriesAsync(
+            MonitorExcelReport report,
+            MonitorReportRequest request,
+            int batchSize = 50,
+            CancellationToken cancellationToken = default)
+        {
+            Log.Information("Fetching metric time series data...");
+
+            var metricIds = report.Metrics
+                .Select(m => m.MetricId)
+                .Where(id => id > 0)
+                .Distinct()
+                .Take(request.MaxMetricIdsForTimeSeries ?? int.MaxValue)
+                .ToList();
+
+            if(metricIds.Count == 0)
+            {
+                return;
+            }
+
+            Log.Debug("Requesting time series for {Count} metrics", metricIds.Count);
+
+            const string bucket = "observed_at:15m";
+
+            var series = await _queries.GetMetricTimeSeriesAsync(
+                metricIds,
+                request.FromUtc,
+                request.ToUtc,
+                bucket,
+                batchSize,
+                cancellationToken).ConfigureAwait(false);
+
+            var rawRows = ProcessMetricTimeSeries(report, series);
+            Log.Debug("Raw time series: {RawCount} data points before downsampling", rawRows.Count);
+
+            var (downsampledRows, effectiveBucket) = DownsampleMetricTimeSeries(rawRows);
+            report.MetricDataBucket = effectiveBucket;
+            report.TimeSeriesMetricData.AddRange(downsampledRows);
+
+            Log.Information("Retrieved {DataPoints} time series data points (downsampled from {RawCount}, bucket: {Bucket})",
+                downsampledRows.Count, rawRows.Count, effectiveBucket);
+        }
+
+        /// <summary>
+        /// Processes metric time series data and adds it to the report.
+        /// </summary>
+        /// <param name="report">The report used to resolve collection names.</param>
+        /// <param name="series">The time series data returned from the API.</param>
+        /// <returns>The list of time series data points parsed from the API response.</returns>
+        /// <remarks>
+        /// Extracts time series data points from the API response and creates MetricDataReportRow entries.
+        /// The returned list contains only the new time series rows and must be added to the report separately.
+        /// </remarks>
+        private static List<MetricDataReportRow> ProcessMetricTimeSeries(MonitorExcelReport report, dynamic series)
+        {
+            var rows = new List<MetricDataReportRow>();
+            foreach(var metric in series.Features)
+            {
+                var metricAttributes = metric.Attributes;
+                var metricsData = metric.MetricsData ?? Enumerable.Empty<dynamic>();
+
+                foreach(var data in metricsData)
+                {
+                    var d = data.Attributes;
+                    rows.Add(new MetricDataReportRow
+                    {
+                        CollectionName = ResolveCollectionName(report, metricAttributes.Id),
+                        MetricId = d.MetricId ?? metricAttributes.Id,
+                        MetricName = metricAttributes.Name,
+                        ComponentId = metricAttributes.ComponentId,
+                        ComponentName = metricAttributes.ComponentName,
+                        ObservedAt = d.ObservedAt,
+                        MinValue = d.MinValue,
+                        MaxValue = d.MaxValue,
+                        AvgValue = d.AvgValue,
+                        StdDevValue = d.StdDevValue,
+                        Percentile95Value = CalculateNormalP95(d.AvgValue, d.StdDevValue, d.MaxValue) ?? d.Percentile95Value,
+                        SumValue = d.SumValue,
+                        CountValue = d.CountValue
+                    });
+                }
+            }
+
+            return rows;
+        }
+
+        /// <summary>
+        /// Downsamples the metric time series data in the report to approximately
+        /// <paramref name="targetDataPoints"/> points per metric series by re-aggregating
+        /// raw 15-minute buckets into coarser intervals.
+        /// </summary>
+        /// <param name="timeSeries">The raw time series rows to downsample (must not contain aggregated stats from the mapper).</param>
+        /// <param name="targetDataPoints">Desired maximum number of data points per series. Default is 400.</param>
+        /// <remarks>
+        /// Selects the finest interval from the progression 15m → 30m → 1h → 6h → 12h → 24h
+        /// such that the resulting point count does not exceed <paramref name="targetDataPoints"/>.
+        /// Series that already have fewer points than the target are left unchanged.
+        /// Aggregation preserves min, max, weighted average, combined standard deviation,
+        /// recalculated P95, sum, and count.
+        /// </remarks>
+        /// <returns>A tuple with the downsampled rows and the bucket label effectively applied (e.g. "15m", "1h").</returns>
+        private static (List<MetricDataReportRow> Rows, string Bucket) DownsampleMetricTimeSeries(
+            List<MetricDataReportRow> timeSeries,
+            int targetDataPoints = 400)
+        {
+            (int Minutes, string Label)[] buckets =
+            [
+                (15,   "15m"),
+                (30,   "30m"),
+                (60,   "1h"),
+                (120,  "2h"),
+                (240,  "4h"),
+                (360,  "6h"),
+                (720,  "12h"),
+                (1440, "24h")
+            ];
+
+            var effectiveBucket = buckets[0].Label;
+
+            if(timeSeries.Count == 0)
+            {
+                return (timeSeries, effectiveBucket);
+            }
+
+            var result = new List<MetricDataReportRow>(timeSeries.Count);
+
+            foreach(var series in timeSeries.Where(d => d.ObservedAt.HasValue).GroupBy(d => d.MetricId))
+            {
+                var points = series.OrderBy(d => d.ObservedAt).ToList();
+
+                if(points.Count <= targetDataPoints)
+                {
+                    result.AddRange(points);
+                    continue;
+                }
+
+                var durationMinutes = (points[^1].ObservedAt!.Value - points[0].ObservedAt!.Value).TotalMinutes;
+                var idealBucketMinutes = durationMinutes / targetDataPoints;
+
+                var bucketMinutes = buckets[^1].Minutes;
+                var bucketLabel = buckets[^1].Label;
+                foreach(var (minutes, label) in buckets)
+                {
+                    if(minutes >= idealBucketMinutes)
+                    {
+                        bucketMinutes = minutes;
+                        bucketLabel = label;
+                        break;
+                    }
+                }
+
+                // Track the coarsest bucket applied across all series
+                if(Array.FindIndex(buckets, b => b.Label == bucketLabel) >
+                   Array.FindIndex(buckets, b => b.Label == effectiveBucket))
+                {
+                    effectiveBucket = bucketLabel;
+                }
+
+                result.AddRange(points
+                    .GroupBy(d => TruncateToBucket(d.ObservedAt!.Value, bucketMinutes))
+                    .Select(g => AggregateBucket(g.Key, g.ToList()))
+                    .OrderBy(d => d.ObservedAt));
+            }
+
+            // Pass through points without a timestamp unchanged
+            result.AddRange(timeSeries.Where(d => !d.ObservedAt.HasValue));
+
+            return (result, effectiveBucket);
+        }
+
+        /// <summary>
+        /// Truncates a timestamp to the nearest lower boundary of the given bucket interval.
+        /// </summary>
+        private static DateTimeOffset TruncateToBucket(DateTimeOffset dt, int bucketMinutes)
+        {
+            var totalMinutes = (long)(dt.UtcDateTime - DateTime.UnixEpoch).TotalMinutes;
+            return DateTimeOffset.UnixEpoch.AddMinutes((totalMinutes / bucketMinutes) * bucketMinutes);
+        }
+
+        /// <summary>
+        /// Aggregates a list of data points within a single time bucket into one representative row.
+        /// </summary>
+        /// <remarks>
+        /// Uses weighted average for <see cref="MetricDataReportRow.AvgValue"/> and the parallel
+        /// variance formula for <see cref="MetricDataReportRow.StdDevValue"/>.
+        /// <see cref="MetricDataReportRow.Percentile95Value"/> is recalculated from the combined statistics.
+        /// </remarks>
+        private static MetricDataReportRow AggregateBucket(DateTimeOffset bucketTime, List<MetricDataReportRow> points)
+        {
+            var first = points[0];
+
+            double? avgValue = null;
+            double? stdDevValue = null;
+            double? countValue = null;
+            double? sumValue = null;
+
+            var countedPoints = points.Where(p => p.AvgValue.HasValue && p.CountValue is > 0).ToList();
+            if(countedPoints.Count > 0)
+            {
+                var totalCount = countedPoints.Sum(p => p.CountValue!.Value);
+                avgValue = countedPoints.Sum(p => p.AvgValue!.Value * p.CountValue!.Value) / totalCount;
+
+                // Parallel variance: Σ count_i × (σ_i² + (μ_i − μ)²) / totalCount
+                var combinedVariance = countedPoints.Sum(p =>
+                {
+                    var variance = p.StdDevValue.HasValue ? p.StdDevValue.Value * p.StdDevValue.Value : 0.0;
+                    var meanDiff = p.AvgValue!.Value - avgValue.Value;
+                    return p.CountValue!.Value * (variance + meanDiff * meanDiff);
+                }) / totalCount;
+
+                stdDevValue = Math.Sqrt(combinedVariance);
+                countValue = totalCount;
+            }
+            else
+            {
+                // Fallback: simple average when count is not available
+                var validAvg = points.Where(p => p.AvgValue.HasValue).ToList();
+                if(validAvg.Count > 0)
+                {
+                    avgValue = validAvg.Average(p => p.AvgValue!.Value);
+                }
+                countValue = points.Sum(p => p.CountValue);
+            }
+
+            if(points.Any(p => p.SumValue.HasValue))
+            {
+                sumValue = points.Sum(p => p.SumValue ?? 0.0);
+            }
+
+            var maxValue = points.Any(p => p.MaxValue.HasValue) ? points.Max(p => p.MaxValue) : null;
+            var minValue = points.Any(p => p.MinValue.HasValue) ? points.Min(p => p.MinValue) : null;
+
+            return new MetricDataReportRow
+            {
+                CollectionName = first.CollectionName,
+                MetricId = first.MetricId,
+                MetricName = first.MetricName,
+                ComponentId = first.ComponentId,
+                ComponentName = first.ComponentName,
+                ObservedAt = bucketTime,
+                MinValue = minValue,
+                MaxValue = maxValue,
+                AvgValue = avgValue,
+                StdDevValue = stdDevValue,
+                Percentile95Value = CalculateNormalP95(avgValue, stdDevValue, maxValue),
+                SumValue = sumValue,
+                CountValue = countValue
+            };
+        }
         /// </summary>
         /// <param name="request">The report request specifying collections, types, time range, and filters.</param>
         /// <param name="outputPath">Full path where the Excel file will be saved.</param>
@@ -419,13 +849,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
             bool KeepMetric(MetricReportRow metric)
             {
                 var name = metric.MetricName ?? string.Empty;
-                if (include.Count > 0 && !include.Any(i => name.Contains(i, StringComparison.OrdinalIgnoreCase)))
-                    return false;
-                if (exclude.Count > 0 && exclude.Any(e => name.Contains(e, StringComparison.OrdinalIgnoreCase)))
-                    return false;
-                if (request.AlertingOnOnly && metric.IsAlertingEnabled != true)
-                    return false;
-                return true;
+                return (include.Count <= 0 || include.Any(i => name.Contains(i, StringComparison.OrdinalIgnoreCase))) && (exclude.Count <= 0 || !exclude.Any(e => name.Contains(e, StringComparison.OrdinalIgnoreCase))) && (!request.AlertingOnOnly || metric.IsAlertingEnabled == true);
             }
 
             var keptMetricIds = report.Metrics
@@ -433,17 +857,12 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 .Select(m => m.MetricId)
                 .ToHashSet();
 
-            report.Metrics = report.Metrics
-                .Where(m => keptMetricIds.Contains(m.MetricId))
-                .ToList();
+            report.Metrics = [.. report.Metrics.Where(m => keptMetricIds.Contains(m.MetricId))];
 
-            report.MetricData = report.MetricData
-                .Where(d => keptMetricIds.Contains(d.MetricId))
-                .ToList();
+            report.MetricData = [.. report.MetricData.Where(d => keptMetricIds.Contains(d.MetricId))];
+            report.TimeSeriesMetricData = [.. report.TimeSeriesMetricData.Where(d => keptMetricIds.Contains(d.MetricId))];
 
-            report.Alerts = report.Alerts
-                .Where(a => a.MetricId.HasValue && keptMetricIds.Contains(a.MetricId.Value))
-                .ToList();
+            report.Alerts = [.. report.Alerts.Where(a => a.MetricId.HasValue && keptMetricIds.Contains(a.MetricId.Value))];
 
             var metricsByComponent = report.Metrics
                 .GroupBy(m => (m.CollectionName, m.ComponentId))
@@ -453,13 +872,13 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 .GroupBy(a => (a.CollectionName, ComponentId: a.ComponentId!.Value))
                 .ToDictionary(g => g.Key, g => g.Count());
 
-            foreach (var component in report.Components)
+            foreach(var component in report.Components)
             {
                 component.MetricCount = metricsByComponent.GetValueOrDefault((component.CollectionName, component.ComponentId));
                 component.AlertCount = alertsByComponent.GetValueOrDefault((component.CollectionName, component.ComponentId));
             }
 
-            report.Collections = report.Collections
+            report.Collections = [.. report.Collections
                 .Select(c =>
                 {
                     var componentCount = report.Components.Count(x => string.Equals(x.CollectionName, c.CollectionName, StringComparison.OrdinalIgnoreCase)
@@ -471,11 +890,10 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                                                                                        && string.Equals(comp.CollectionName, c.CollectionName, StringComparison.OrdinalIgnoreCase)
                                                                                        && string.Equals(comp.Type, c.ComponentType, StringComparison.OrdinalIgnoreCase)));
                     return c with { ComponentCount = componentCount, MetricCount = metricCount, AlertCount = alertCount };
-                })
-                .ToList();
+                })];
         }
 
-        /// <summary>
+        ///
         /// Resolves the collection name for a given metric ID by searching the report's metrics.
         /// </summary>
         /// <param name="report">The report containing metrics.</param>
@@ -485,9 +903,81 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// This helper method is used when processing time series data to associate
         /// each data point with the correct collection.
         /// </remarks>
-        private static string ResolveCollectionName(MonitorExcelReport report, int metricId)
+        private static string ResolveCollectionName(MonitorExcelReport report, int metricId) => report.Metrics.FirstOrDefault(m => m.MetricId == metricId)?.CollectionName ?? string.Empty;
+
+        /// <summary>
+        /// Calculates the 95th percentile (P95) of a normal distribution using exact statistics, constrained by the maximum observed value.
+        /// </summary>
+        /// <param name="mean">The mean (average) of the distribution.</param>
+        /// <param name="stdDev">The standard deviation of the distribution.</param>
+        /// <param name="maxValue">The maximum observed value (P95 will not exceed this).</param>
+        /// <returns>The 95th percentile value, or null if inputs are invalid.</returns>
+        /// <remarks>
+        /// <para>
+        /// This method calculates the exact P95 value using the normal distribution formula:
+        /// <c>P95 = min(μ + z₀.₉₅ × σ, max)</c>
+        /// </para>
+        /// <para>
+        /// Where:
+        /// <list type="bullet">
+        /// <item><description>μ (mu) = mean</description></item>
+        /// <item><description>σ (sigma) = standard deviation</description></item>
+        /// <item><description>z₀.₉₅ = 1.6448536269514722 (exact z-score for 95th percentile)</description></item>
+        /// <item><description>max = maximum observed value</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// The calculated P95 is constrained to never exceed the maximum observed value,
+        /// ensuring statistical consistency with the actual data distribution. This is important because:
+        /// <list type="bullet">
+        /// <item><description>Real data may not perfectly follow a normal distribution</description></item>
+        /// <item><description>Small sample sizes can lead to theoretical estimates exceeding observed maxima</description></item>
+        /// <item><description>The 95th percentile cannot logically exceed the maximum observed value</description></item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// Returns <c>null</c> if:
+        /// <list type="bullet">
+        /// <item><description>Mean is null or NaN</description></item>
+        /// <item><description>Standard deviation is null, NaN, or negative</description></item>
+        /// <item><description>Maximum value is null or NaN</description></item>
+        /// </list>
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// double? mean = 100.0;
+        /// double? stdDev = 15.0;
+        /// double? max = 120.0;
+        /// double? p95 = CalculateNormalP95(mean, stdDev, max);
+        /// // Result: 120.0 (capped at max, since 100 + 1.645*15 = 124.67 > 120)
+        /// </code>
+        /// </example>
+        private static double? CalculateNormalP95(double? mean, double? stdDev, double? maxValue)
         {
-            return report.Metrics.FirstOrDefault(m => m.MetricId == metricId)?.CollectionName ?? string.Empty;
+            // Z-score for 95th percentile in a standard normal distribution
+            const double Z_95 = 1.6448536269514722;
+
+            if(!mean.HasValue || double.IsNaN(mean.Value))
+            {
+                return null;
+            }
+
+            if(!stdDev.HasValue || double.IsNaN(stdDev.Value) || stdDev.Value < 0)
+            {
+                return null;
+            }
+
+            if(!maxValue.HasValue || double.IsNaN(maxValue.Value))
+            {
+                return null;
+            }
+
+            // P95 = μ + z₀.₉₅ × σ
+            var theoreticalP95 = mean.Value + (Z_95 * stdDev.Value);
+
+            // Ensure P95 does not exceed the maximum observed value
+            return Math.Min(theoreticalP95, maxValue.Value);
         }
 
         /// <summary>
@@ -516,11 +1006,10 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         private static ComponentFeature MergeComponentMetrics(IEnumerable<ComponentFeature> group)
         {
             var first = group.First();
-            first.Metrics = group
+            first.Metrics = [.. group
                 .SelectMany(c => c.Metrics ?? [])
                 .GroupBy(m => m.Attributes.Id)
-                .Select(g => g.First())
-                .ToList();
+                .Select(g => g.First())];
             return first;
         }
     }

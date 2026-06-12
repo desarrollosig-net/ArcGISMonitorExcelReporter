@@ -1,5 +1,8 @@
 ﻿using ArcGISMonitorExcelReporterLib;
+
 using ReporterConfiguration = ArcGISMonitorExcelReporterLib.Configuration.Configuration;
+using Reporter = ArcGISMonitorExcelReporterLib.ArcGISMonitorExcelReporter;
+
 using Serilog;
 
 // This application creates two folders relative to the configuration file location:
@@ -7,18 +10,20 @@ using Serilog;
 // - reports/: Contains generated Excel reports ({config-name}_{yyyyMMdd_HHmm}.xlsx)
 
 // Parse command line arguments
-if (!TryParseArguments(args, out var configFilePath))
+if(!TryParseArguments(args, out var configFilePath))
 {
     return 1; // Exit with error code
 }
 
 #if DEBUG
-    // In DEBUG mode, show parsed configuration for verification
-    Console.WriteLine($"[DEBUG] Configuration file: {configFilePath}");
-    Console.WriteLine($"[DEBUG] Full path: {Path.GetFullPath(configFilePath)}");
-    Console.WriteLine($"[DEBUG] Working directory: {Directory.GetCurrentDirectory()}");
-    Console.WriteLine($"[DEBUG] Environment: {Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Not set"}");
-    Console.WriteLine();
+// In DEBUG mode, show parsed configuration for verification
+Console.WriteLine($"[DEBUG] ArcGIS Monitor Excel Reporter v{VersionInfo.Version}");
+Console.WriteLine($"[DEBUG] Build: {VersionInfo.BuildTimestamp}");
+Console.WriteLine($"[DEBUG] Configuration file: {configFilePath}");
+Console.WriteLine($"[DEBUG] Full path: {Path.GetFullPath(configFilePath)}");
+Console.WriteLine($"[DEBUG] Working directory: {Directory.GetCurrentDirectory()}");
+Console.WriteLine($"[DEBUG] Environment: {Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Not set"}");
+Console.WriteLine();
 #endif
 
 try
@@ -49,7 +54,10 @@ try
             outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
         .CreateLogger();
 
-    Log.Information("=== ArcGIS Monitor Excel Reporter Started ===");
+    Log.Information("=============================================================");
+    Log.Information("=== ArcGIS Monitor Excel Reporter {Version} ===", VersionInfo.Version);
+    Log.Information("=== Build: {BuildTimestamp} ===", VersionInfo.BuildTimestamp);
+    Log.Information("=============================================================");
     Log.Information("Configuration file: {ConfigPath}", configFilePath);
     Log.Information("Reports folder: {ReportsFolder}", reportsFolder);
     Log.Information("Logs folder: {LogsFolder}", logsFolder);
@@ -64,7 +72,7 @@ try
     var configuration = await ReporterConfiguration.LoadAsync(configFilePath, cancellationToken);
     Log.Information("Configuration loaded successfully");
 
-    var reporter = new ArcGISMonitorExcelReporter();
+    var reporter = new Reporter();
 
     Log.Information("Starting Excel report generation...");
     await reporter.GenerateExcelAsync(
@@ -72,10 +80,14 @@ try
         outputExcelPath,
         cancellationToken);
 
-    Log.Information("=== Excel report generated successfully: {OutputPath} ===", outputExcelPath);
+    Log.Information("=============================================================");
+    Log.Information("=== Report generated successfully ===");
+    Log.Information("=== Output: {OutputPath} ===", outputExcelPath);
+    Log.Information("=== Version: {Version} ===", VersionInfo.Version);
+    Log.Information("=============================================================");
     return 0; // Exit with success code
 }
-catch (Exception ex)
+catch(Exception ex)
 {
     Log.Fatal(ex, "Fatal error occurred during report generation");
     return 1; // Exit with error code
@@ -96,7 +108,7 @@ static bool TryParseArguments(string[] args, out string configFilePath)
     configFilePath = string.Empty;
 
     // Check for help argument first
-    if (args.Length > 0 && (args[0] == "-h" || args[0] == "--help" || args[0] == "-?" || args[0] == "/?"))
+    if(args.Length > 0 && (args[0] == "-h" || args[0] == "--help" || args[0] == "-?" || args[0] == "/?"))
     {
         ShowHelp();
         return false;
@@ -105,7 +117,7 @@ static bool TryParseArguments(string[] args, out string configFilePath)
     // Check if -f argument is provided
     var fIndex = Array.IndexOf(args, "-f");
 
-    if (fIndex == -1 || fIndex + 1 >= args.Length)
+    if(fIndex == -1 || fIndex + 1 >= args.Length)
     {
         Console.WriteLine("Error: Missing required argument -f <config-file>");
         Console.WriteLine();
@@ -116,7 +128,7 @@ static bool TryParseArguments(string[] args, out string configFilePath)
     configFilePath = args[fIndex + 1];
 
     // Validate that the file path is not empty
-    if (string.IsNullOrWhiteSpace(configFilePath))
+    if(string.IsNullOrWhiteSpace(configFilePath))
     {
         Console.WriteLine("Error: Configuration file path cannot be empty");
         Console.WriteLine();
@@ -125,7 +137,7 @@ static bool TryParseArguments(string[] args, out string configFilePath)
     }
 
     // Validate that the file exists
-    if (!File.Exists(configFilePath))
+    if(!File.Exists(configFilePath))
     {
         Console.WriteLine($"Error: Configuration file not found: {configFilePath}");
         Console.WriteLine($"       Full path attempted: {Path.GetFullPath(configFilePath)}");
@@ -138,7 +150,7 @@ static bool TryParseArguments(string[] args, out string configFilePath)
     }
 
     // Validate that it's a JSON file
-    if (!configFilePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+    if(!configFilePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
     {
         Console.WriteLine($"Warning: Configuration file does not have .json extension: {configFilePath}");
         Console.WriteLine();
@@ -152,8 +164,9 @@ static bool TryParseArguments(string[] args, out string configFilePath)
 /// </summary>
 static void ShowHelp()
 {
-    Console.WriteLine("ArcGIS Monitor Excel Reporter");
-    Console.WriteLine("==============================");
+    Console.WriteLine($"ArcGIS Monitor Excel Reporter v{VersionInfo.Version}");
+    Console.WriteLine($"Build: {VersionInfo.BuildTimestamp}");
+    Console.WriteLine("========================================================");
     Console.WriteLine();
     Console.WriteLine("Usage:");
     Console.WriteLine("  ArcGISMonitorExcelReporter -f <config-file>");

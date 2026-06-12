@@ -1,0 +1,30 @@
+{
+  "server": {
+    "url": "https://monitor.example.com:30443/arcgis",
+    "_url_comment": "For installations WITH PORT (direct): https://server:30443/arcgis | For installations WITH WEB ADAPTOR: https://server/monitor",
+    "username": "admin",
+    "password": "Base64EncodedPassword==",
+    "password_encoding": true,
+    "ignore_ssl_errors": true,
+    "timeout_seconds": 600
+  },
+  "report": {
+    "collection": "*",
+    "timezone": "America/Bogota",
+    "end_time": {
+      "now": false,
+      "year": 2026,
+      "month": 6,
+      "day": 11,
+      "hour": 7
+    },
+    "past_days": 15,
+    "past_hours": 0,
+    "types": [ "host", "storage", "arcgis_portal", "arcgis_server", "service", "arcgis_data_store", "dataset", "database" ],
+    "metrics": {
+      "alerting_on_only": false,
+      "include_only": [],
+      "exclude_metrics": []
+    }
+  }
+}

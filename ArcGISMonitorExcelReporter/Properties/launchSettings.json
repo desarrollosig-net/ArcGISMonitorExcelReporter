@@ -8,6 +8,27 @@
         "DOTNET_ENVIRONMENT": "Development"
       }
     },
+    "Development - agm2023x.json": {
+      "commandName": "Project",
+      "commandLineArgs": "-f \"C:\\Users\\Mtorres\\source\\repos\\ArcGISMonitorExcelReporter\\data\\agm2023x.json\"",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    },
+    "Development - agm2023w.json": {
+      "commandName": "Project",
+      "commandLineArgs": "-f \"C:\\Users\\Mtorres\\source\\repos\\ArcGISMonitorExcelReporter\\data\\agm2023w.json\"",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    },
+    "Development - agm2025w.json": {
+      "commandName": "Project",
+      "commandLineArgs": "-f \"C:\\Users\\Mtorres\\source\\repos\\ArcGISMonitorExcelReporter\\data\\agm2025w.json\"",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    },
     "Development - Relative Path": {
       "commandName": "Project",
       "commandLineArgs": "-f \"..\\..\\..\\data\\config.json\"",

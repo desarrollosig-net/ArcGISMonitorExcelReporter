@@ -1,0 +1,117 @@
+name: Publish & Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build, Publish & Release
+    runs-on: windows-latest
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── 2. Setup .NET 8 ────────────────────────────────────────────────────
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # ── 3. Calculate version ───────────────────────────────────────────────
+      # Replicates VersionInfo.targets logic: yyyy.MM.dd.<GITHUB_RUN_NUMBER>
+      # Pre-populates the two files MSBuild reads so the generated version
+      # matches what we expose as the release name/tag.
+      - name: Calculate version
+        id: version
+        shell: pwsh
+        run: |
+          $date      = Get-Date -Format "yyyy.MM.dd"
+          $build     = "${{ github.run_number }}"
+          $version   = "$date.$build"
+
+          # Pre-populate files consumed by VersionInfo.targets
+          $projectDir = "ArcGISMonitorExcelReporter"
+          Set-Content -Path "$projectDir\BuildNumber.txt"    -Value $build    -NoNewline
+          Set-Content -Path "$projectDir\LastDatePrefix.txt" -Value $date     -NoNewline
+
+          Write-Host "Version: $version"
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "tag=v$version"    | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      # ── 4. Restore NuGet packages ──────────────────────────────────────────
+      - name: Restore
+        run: dotnet restore
+
+      # ── 5. Publish win-x64 ────────────────────────────────────────────────
+      - name: Publish win-x64
+        run: >
+          dotnet publish ArcGISMonitorExcelReporter/ArcGISMonitorExcelReporter.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          --output publish/win-x64
+
+      # ── 6. Publish linux-x64 ──────────────────────────────────────────────
+      - name: Publish linux-x64
+        run: >
+          dotnet publish ArcGISMonitorExcelReporter/ArcGISMonitorExcelReporter.csproj
+          --configuration Release
+          --runtime linux-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          --output publish/linux-x64
+
+      # ── 7. Package artifacts ───────────────────────────────────────────────
+      - name: Package artifacts
+        id: package
+        shell: pwsh
+        run: |
+          $version  = "${{ steps.version.outputs.version }}"
+          $winZip   = "ArcGISMonitorExcelReporter-$version-win-x64.zip"
+          $linuxZip = "ArcGISMonitorExcelReporter-$version-linux-x64.zip"
+
+          Compress-Archive -Path publish/win-x64/*   -DestinationPath $winZip   -Force
+          Compress-Archive -Path publish/linux-x64/* -DestinationPath $linuxZip -Force
+
+          "win_zip=$winZip"     | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "linux_zip=$linuxZip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      # ── 8. Create GitHub Release ───────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ArcGIS Monitor Excel Reporter ${{ steps.version.outputs.version }}
+          body: |
+            ## ArcGIS Monitor Excel Reporter — ${{ steps.version.outputs.version }}
+
+            | Platform  | File |
+            |-----------|------|
+            | Windows x64 | `${{ steps.package.outputs.win_zip }}` |
+            | Linux x64   | `${{ steps.package.outputs.linux_zip }}` |
+
+            **Build:** `${{ github.run_number }}`  
+            **Commit:** ${{ github.sha }}  
+            **Branch:** `${{ github.ref_name }}`
+          files: |
+            ${{ steps.package.outputs.win_zip }}
+            ${{ steps.package.outputs.linux_zip }}
+          draft: false
+          prerelease: false
+          make_latest: true
