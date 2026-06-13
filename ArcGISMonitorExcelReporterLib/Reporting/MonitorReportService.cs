@@ -672,7 +672,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
 
                 result.AddRange(points
                     .GroupBy(d => TruncateToBucket(d.ObservedAt!.Value, bucketMinutes))
-                    .Select(g => AggregateBucket(g.Key, g.ToList()))
+                    .Select(g => AggregateBucket(g.Key, [.. g]))
                     .OrderBy(d => d.ObservedAt));
             }
 
@@ -688,7 +688,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         private static DateTimeOffset TruncateToBucket(DateTimeOffset dt, int bucketMinutes)
         {
             var totalMinutes = (long)(dt.UtcDateTime - DateTime.UnixEpoch).TotalMinutes;
-            return DateTimeOffset.UnixEpoch.AddMinutes((totalMinutes / bucketMinutes) * bucketMinutes);
+            return DateTimeOffset.UnixEpoch.AddMinutes(totalMinutes / bucketMinutes * bucketMinutes);
         }
 
         /// <summary>
@@ -719,7 +719,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 {
                     var variance = p.StdDevValue.HasValue ? p.StdDevValue.Value * p.StdDevValue.Value : 0.0;
                     var meanDiff = p.AvgValue!.Value - avgValue.Value;
-                    return p.CountValue!.Value * (variance + meanDiff * meanDiff);
+                    return p.CountValue!.Value * (variance + (meanDiff * meanDiff));
                 }) / totalCount;
 
                 stdDevValue = Math.Sqrt(combinedVariance);
