@@ -3,28 +3,28 @@
   "profiles": {
     "Development - inocar.json": {
       "commandName": "Project",
-      "commandLineArgs": "-f \"C:\\Users\\Mtorres\\source\\repos\\ArcGISMonitorExcelReporter\\data\\inocar.json\"",
+      "commandLineArgs": "-f \"\"..\\..\\..\\data\\inocar.json\"",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Development"
       }
     },
     "Development - agm2023x.json": {
       "commandName": "Project",
-      "commandLineArgs": "-f \"C:\\Users\\Mtorres\\source\\repos\\ArcGISMonitorExcelReporter\\data\\agm2023x.json\"",
+      "commandLineArgs": "-f \"..\\..\\..\\data\\agm2023x.json\"",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Development"
       }
     },
     "Development - agm2023w.json": {
       "commandName": "Project",
-      "commandLineArgs": "-f \"C:\\Users\\Mtorres\\source\\repos\\ArcGISMonitorExcelReporter\\data\\agm2023w.json\"",
+      "commandLineArgs": "-f \"..\\..\\..\\data\\agm2023w.json\"",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Development"
       }
     },
     "Development - agm2025w.json": {
       "commandName": "Project",
-      "commandLineArgs": "-f \"C:\\Users\\Mtorres\\source\\repos\\ArcGISMonitorExcelReporter\\data\\agm2025w.json\"",
+      "commandLineArgs": "-f \"..\\..\\..\\data\\agm2025w.json\"",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Development"
       }
