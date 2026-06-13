@@ -3,7 +3,7 @@
   "profiles": {
     "Development - inocar.json": {
       "commandName": "Project",
-      "commandLineArgs": "-f \"\"..\\..\\..\\data\\inocar.json\"",
+      "commandLineArgs": "-f \"..\\..\\..\\data\\inocar.json\"",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Development"
       }
