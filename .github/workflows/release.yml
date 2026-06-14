@@ -45,6 +45,10 @@ jobs:
           Set-Content -Path "$projectDir\BuildNumber.txt"    -Value $build    -NoNewline
           Set-Content -Path "$projectDir\LastDatePrefix.txt" -Value $date     -NoNewline
 
+          # Create marker file to prevent MSBuild from incrementing build number
+          # This ensures that multiple platform builds (win-x64, linux-x64) all use the same build number
+          Set-Content -Path "$projectDir\BuildNumberFromCI.txt" -Value "1" -NoNewline
+
           Write-Host "Version: $version"
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "tag=v$version"    | Out-File -FilePath $env:GITHUB_OUTPUT -Append
@@ -66,6 +70,12 @@ jobs:
           --output publish/win-x64
 
       # ── 6. Publish linux-x64 ──────────────────────────────────────────────
+      - name: Restore CI marker for linux-x64 build
+        shell: pwsh
+        run: |
+          $projectDir = "ArcGISMonitorExcelReporter"
+          Set-Content -Path "$projectDir\BuildNumberFromCI.txt" -Value "1" -NoNewline
+
       - name: Publish linux-x64
         run: >
           dotnet publish ArcGISMonitorExcelReporter/ArcGISMonitorExcelReporter.csproj
@@ -115,3 +125,6 @@ jobs:
           draft: false
           prerelease: false
           make_latest: true
+
+
+

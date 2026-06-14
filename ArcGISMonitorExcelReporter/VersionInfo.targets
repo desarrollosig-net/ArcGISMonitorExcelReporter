@@ -2,34 +2,45 @@
   <PropertyGroup>
     <!-- Base version: yyyy.MM.dd -->
     <VersionPrefix>$([System.DateTime]::Now.ToString('yyyy.MM.dd'))</VersionPrefix>
-    
+
     <!-- Build number file path -->
     <BuildNumberFile>$(MSBuildProjectDirectory)\BuildNumber.txt</BuildNumberFile>
+    <CI>false</CI>
+    <CIMarkerFile>$(MSBuildProjectDirectory)\BuildNumberFromCI.txt</CIMarkerFile>
   </PropertyGroup>
 
   <Target Name="IncrementBuildNumber" BeforeTargets="BeforeBuild">
+    <!-- Check if running in CI (GitHub Actions) by looking for the marker file -->
+    <PropertyGroup>
+      <CI Condition="Exists('$(CIMarkerFile)')">true</CI>
+    </PropertyGroup>
+
     <!-- Read current build number or start at 1 -->
     <PropertyGroup>
       <BuildNumber Condition="Exists('$(BuildNumberFile)')">$([System.IO.File]::ReadAllText('$(BuildNumberFile)').Trim())</BuildNumber>
       <BuildNumber Condition="'$(BuildNumber)' == ''">1</BuildNumber>
-      
+
       <!-- Get current date prefix -->
       <CurrentDatePrefix>$([System.DateTime]::Now.ToString('yyyy.MM.dd'))</CurrentDatePrefix>
-      
+
       <!-- Read last date prefix if file exists -->
       <LastDatePrefixFile>$(MSBuildProjectDirectory)\LastDatePrefix.txt</LastDatePrefixFile>
       <LastDatePrefix Condition="Exists('$(LastDatePrefixFile)')">$([System.IO.File]::ReadAllText('$(LastDatePrefixFile)').Trim())</LastDatePrefix>
     </PropertyGroup>
 
-    <!-- Reset build number to 1 if date changed, otherwise increment -->
+    <!-- Reset build number to 1 if date changed, otherwise increment (but only if not CI) -->
     <PropertyGroup>
-      <BuildNumber Condition="'$(CurrentDatePrefix)' != '$(LastDatePrefix)'">1</BuildNumber>
-      <BuildNumber Condition="'$(CurrentDatePrefix)' == '$(LastDatePrefix)'">$([MSBuild]::Add($(BuildNumber), 1))</BuildNumber>
+      <!-- If running in CI (GitHub Actions), do NOT modify the build number -->
+      <BuildNumber Condition="'$(CI)' == 'true'">$(BuildNumber)</BuildNumber>
+
+      <!-- If not CI, apply normal logic: reset on new day or increment -->
+      <BuildNumber Condition="'$(CI)' != 'true' AND '$(CurrentDatePrefix)' != '$(LastDatePrefix)'">1</BuildNumber>
+      <BuildNumber Condition="'$(CI)' != 'true' AND '$(CurrentDatePrefix)' == '$(LastDatePrefix)'">$([MSBuild]::Add($(BuildNumber), 1))</BuildNumber>
     </PropertyGroup>
 
-    <!-- Write updated build number and date prefix -->
-    <WriteLinesToFile File="$(BuildNumberFile)" Lines="$(BuildNumber)" Overwrite="true" />
-    <WriteLinesToFile File="$(LastDatePrefixFile)" Lines="$(CurrentDatePrefix)" Overwrite="true" />
+    <!-- Only write updated files if NOT running in CI -->
+    <WriteLinesToFile Condition="'$(CI)' != 'true'" File="$(BuildNumberFile)" Lines="$(BuildNumber)" Overwrite="true" />
+    <WriteLinesToFile Condition="'$(CI)' != 'true'" File="$(LastDatePrefixFile)" Lines="$(CurrentDatePrefix)" Overwrite="true" />
 
     <!-- Set full version -->
     <PropertyGroup>

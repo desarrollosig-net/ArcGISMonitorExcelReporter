@@ -1,0 +1,35 @@
+{
+  "$schema": "https://example.com/schema/config.schema.json",
+  "server": {
+	"url": "https://monitor.example.com:30443/arcgis",
+	"username": "admin",
+	"password": "your-secure-password",
+	"password_encoding": false,
+	"ignore_ssl_errors": false,
+	"timeout_seconds": 300
+  },
+  "report": {
+	"collection": "Production",
+	"timezone": "America/New_York",
+	"end_time": {
+	  "now": true
+	},
+	"past_days": 7,
+	"past_hours": 0,
+	"types": [
+	  "host",
+	  "storage",
+	  "service",
+	  "database"
+	],
+	"metrics": {
+	  "alerting_on_only": false,
+	  "include_only": [],
+	  "exclude_metrics": []
+	},
+	"page_size": 100,
+	"metric_bucket": "observed_at:15m",
+	"include_metric_time_series": true,
+	"max_metric_ids_for_time_series": 5000
+  }
+}
