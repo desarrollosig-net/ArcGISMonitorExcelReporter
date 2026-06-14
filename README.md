@@ -417,6 +417,6 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and version notes.
 
 ---
 
-**Version:** 2025.01.27.1  
-**Last Updated:** January 27, 2025  
+**Version:** 2026.06.14.3  
+**Last Updated:** June 14, 2026
 **Status:** Active Development
