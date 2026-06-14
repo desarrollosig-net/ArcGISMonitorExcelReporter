@@ -135,7 +135,7 @@ namespace ArcGISMonitorExcelReporterLib.Models
         /// This is a string format used specifically by the collections endpoint.
         /// </remarks>
         [JsonPropertyName("groupbyFieldsForStatistics")]
-        public string? GroupbyFieldsForStatistics { get; set; }
+        public string? GroupByFieldsForStatistics { get; set; }
     }
 
     /// <summary>

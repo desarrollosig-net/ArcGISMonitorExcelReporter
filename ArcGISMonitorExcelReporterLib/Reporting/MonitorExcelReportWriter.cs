@@ -1241,7 +1241,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// Writes the Alerts sheet with severity labels and color coding.
         /// Replaces the numeric Status code (1=info, 2=warning, 3=critical) with a labeled, colored cell.
         /// </summary>
-        private static void WriteAlertsSheet(XLWorkbook workbook, SheetRegistry sheetRegistry, IReadOnlyCollection<AlertReportRow> alerts)
+        private static void WriteAlertsSheet(XLWorkbook workbook, SheetRegistry sheetRegistry, List<AlertReportRow> alerts)
         {
             var ws = workbook.Worksheets.Add(sheetRegistry.GetOrCreatePhysicalName("Alerts"));
             WriteBackToIndex(ws);
