@@ -1,3 +1,5 @@
+// Ignore Spelling: Gdb
+
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -147,7 +149,7 @@ namespace ArcGISMonitorExcelReporterLib.Models
 
             return reader.TokenType == JsonTokenType.Null
                 ? new ComponentsResult()
-                : throw new JsonException($"No se puede convertir token {reader.TokenType} a ComponentsResult.");
+                : throw new JsonException($"Can't convert token {reader.TokenType} to ComponentsResult.");
         }
 
         /// <summary>

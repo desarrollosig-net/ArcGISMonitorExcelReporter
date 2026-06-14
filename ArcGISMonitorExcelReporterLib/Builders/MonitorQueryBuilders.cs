@@ -358,7 +358,7 @@ namespace ArcGISMonitorExcelReporterLib.Builders
                             {
                                 Resource = "metrics_data",
                                 Where = BetweenTimestamp("observed_at", fromUtc, toUtc),
-                                GroupbyFieldsForStatistics = "metric_id",
+                                GroupByFieldsForStatistics = "metric_id",
                                 OutStatistics =
                                 [
                                     new OutStatistic
@@ -476,7 +476,7 @@ namespace ArcGISMonitorExcelReporterLib.Builders
                             {
                                 Resource = "metrics_data",
                                 Where = BetweenTimestamp("observed_at", fromUtc, toUtc),
-                                GroupbyFieldsForStatistics = "metric_id",
+                                GroupByFieldsForStatistics = "metric_id",
                                 OutStatistics =
                                 [
                                     new OutStatistic
