@@ -1,3 +1,5 @@
+// Ignore Spelling: Gis
+
 using System.Text.Json;
 
 using ArcGISMonitorExcelReporterLib.Builders;
@@ -107,7 +109,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
         public async Task<List<ComponentFeature>> GetComponentsWithAllMetricsAsync(
             string collectionName,
             string componentType,
-            int pageSize = 100,
+            string messageTemplate, int pageSize = 100,
             CancellationToken cancellationToken = default)
         {
             Log.Debug("Getting component count for {Collection}/{Type}...", collectionName, componentType);
@@ -130,7 +132,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
 
                 components.AddRange(response.Features.SelectMany(f => f.Components.Items));
 
-                Log.Debug("Retrieved {Count} components in this page", pageCount);
+                Log.Debug(messageTemplate: messageTemplate, pageCount);
 
                 if(total == 0)
                 {

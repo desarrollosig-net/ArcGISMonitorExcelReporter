@@ -1,4 +1,8 @@
+// Ignore Spelling: Dev
+
 using ArcGISMonitorExcelReporterLib.Models;
+
+using System.Linq;
 
 namespace ArcGISMonitorExcelReporterLib.Reporting
 {
@@ -660,55 +664,47 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                         Samples = m.Samples
                     });
 
-                    foreach(var data in metric.MetricsData ?? [])
-                    {
-                        var d = data.Attributes;
-
-                        // Calculate exact Percentile 95 using normal distribution formula: P95 = min(μ + z₀.₉₅ × σ, max)
-                        // Where z₀.₉₅ = 1.6448536269514722 (exact z-score for 95th percentile)
-                        // The result is capped at the maximum observed value to ensure statistical consistency
-                        var percentile95 = MonitorReportMapper.CalculateNormalP95(d.AvgValue, d.StdDevValue, d.MaxValue);
-
-                        report.MetricData.Add(new MetricDataReportRow
-                        {
-                            CollectionName = collectionName,
-                            MetricId = d.MetricId ?? m.Id,
-                            MetricName = m.Name,
-                            ComponentId = c.Id,
-                            ComponentName = c.Name,
-                            ObservedAt = d.ObservedAt,
-                            MinValue = d.MinValue,
-                            MaxValue = d.MaxValue,
-                            AvgValue = d.AvgValue,
-                            StdDevValue = d.StdDevValue,
-                            Percentile95Value = percentile95,
-                            SumValue = d.SumValue,
-                            CountValue = d.CountValue
-                        });
-                    }
-
-                    foreach(var alert in metric.Alerts ?? [])
-                    {
-                        var a = alert.Attributes;
-                        report.Alerts.Add(new AlertReportRow
-                        {
-                            CollectionName = collectionName,
-                            AlertId = a.Id,
-                            MetricId = a.MetricId ?? m.Id,
-                            MetricName = a.MetricName ?? m.Name,
-                            ComponentId = a.ComponentId ?? c.Id,
-                            ComponentName = a.ComponentName ?? c.Name,
-                            State = a.State,
-                            Status = a.Status,
-                            OpenedAt = a.OpenedAt,
-                            ClosedAt = a.ClosedAt,
-                            Operator = a.Operator,
-                            InfoThreshold = a.InfoThreshold,
-                            WarningThreshold = a.WarningThreshold,
-                            CriticalThreshold = a.CriticalThreshold,
-                            Duration = a.Duration
-                        });
-                    }
+                    report.MetricData.AddRange(from data in metric.MetricsData ?? []
+                                               let d = data.Attributes// Calculate exact Percentile 95 using normal distribution formula: P95 = min(μ + z₀.₉₅ × σ, max)
+                                                                      // Where z₀.₉₅ = 1.6448536269514722 (exact z-score for 95th percentile)
+                                                                      // The result is capped at the maximum observed value to ensure statistical consistency
+                                               let percentile95 = MonitorReportMapper.CalculateNormalP95(d.AvgValue, d.StdDevValue, d.MaxValue)
+                                               select new MetricDataReportRow
+                                               {
+                                                   CollectionName = collectionName,
+                                                   MetricId = d.MetricId ?? m.Id,
+                                                   MetricName = m.Name,
+                                                   ComponentId = c.Id,
+                                                   ComponentName = c.Name,
+                                                   ObservedAt = d.ObservedAt,
+                                                   MinValue = d.MinValue,
+                                                   MaxValue = d.MaxValue,
+                                                   AvgValue = d.AvgValue,
+                                                   StdDevValue = d.StdDevValue,
+                                                   Percentile95Value = percentile95,
+                                                   SumValue = d.SumValue,
+                                                   CountValue = d.CountValue
+                                               });
+                    report.Alerts.AddRange(from alert in metric.Alerts ?? []
+                                           let a = alert.Attributes
+                                           select new AlertReportRow
+                                           {
+                                               CollectionName = collectionName,
+                                               AlertId = a.Id,
+                                               MetricId = a.MetricId ?? m.Id,
+                                               MetricName = a.MetricName ?? m.Name,
+                                               ComponentId = a.ComponentId ?? c.Id,
+                                               ComponentName = a.ComponentName ?? c.Name,
+                                               State = a.State,
+                                               Status = a.Status,
+                                               OpenedAt = a.OpenedAt,
+                                               ClosedAt = a.ClosedAt,
+                                               Operator = a.Operator,
+                                               InfoThreshold = a.InfoThreshold,
+                                               WarningThreshold = a.WarningThreshold,
+                                               CriticalThreshold = a.CriticalThreshold,
+                                               Duration = a.Duration
+                                           });
                 }
             }
         }

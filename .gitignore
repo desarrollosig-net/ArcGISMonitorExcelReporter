@@ -367,4 +367,5 @@ FodyWeavers.xsd
 # Auto-generated version files
 BuildNumber.txt
 LastDatePrefix.txt
+BuildNumberFromCI.txt
 VersionInfo.g.cs

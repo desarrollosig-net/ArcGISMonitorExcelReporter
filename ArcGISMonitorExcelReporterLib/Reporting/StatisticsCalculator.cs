@@ -1,3 +1,5 @@
+// Ignore Spelling: Dev
+
 namespace ArcGISMonitorExcelReporterLib.Reporting
 {
     /// <summary>
