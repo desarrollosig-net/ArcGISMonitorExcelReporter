@@ -19,16 +19,14 @@ if(!TryParseArguments(args, out var configFilePath))
     return 1; // Exit with error code
 }
 
-#if DEBUG
 // In DEBUG mode, show parsed configuration for verification
-Console.WriteLine($"[DEBUG] ArcGIS Monitor Excel Reporter v{VersionInfo.Version}");
-Console.WriteLine($"[DEBUG] Build: {VersionInfo.BuildTimestamp}");
-Console.WriteLine($"[DEBUG] Configuration file: {configFilePath}");
-Console.WriteLine($"[DEBUG] Full path: {Path.GetFullPath(configFilePath)}");
-Console.WriteLine($"[DEBUG] Working directory: {Directory.GetCurrentDirectory()}");
-Console.WriteLine($"[DEBUG] Environment: {Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Not set"}");
+Console.WriteLine($"ArcGIS Monitor Excel Reporter v{VersionInfo.Version}");
+Console.WriteLine($"Build: {VersionInfo.BuildTimestamp}");
+Console.WriteLine($"Configuration file: {configFilePath}");
+Console.WriteLine($"Full path: {Path.GetFullPath(configFilePath)}");
+Console.WriteLine($"Working directory: {Directory.GetCurrentDirectory()}");
+Console.WriteLine($"Environment: {Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Not set"}");
 Console.WriteLine();
-#endif
 
 try
 {
@@ -60,7 +58,9 @@ try
 
     var decoration = new string('=', 60);
 
+#pragma warning disable S6664
     Log.Information(decoration);
+#pragma warning restore S6664
     Log.Information("=== ArcGIS Monitor Excel Reporter {Version} ===", VersionInfo.Version);
     Log.Information("=== Build: {BuildTimestamp} ===", VersionInfo.BuildTimestamp);
     Log.Information(decoration);
@@ -100,7 +100,7 @@ try
 }
 catch(Exception ex)
 {
-    Log.Fatal(ex, "Fatal error occurred during report generation");
+    Log.Error(ex, "Fatal error occurred during report generation");
     return 1; // Exit with error code
 }
 finally

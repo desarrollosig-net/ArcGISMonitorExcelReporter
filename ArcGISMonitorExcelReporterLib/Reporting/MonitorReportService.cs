@@ -492,7 +492,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 var componentType = typeGroup.Key ?? string.Empty;
                 var components = typeGroup.ToList();
 
-                Log.Debug("Processing {Count} components of type {Type}", components.Count, componentType);
+                Log.Information("Processing {Count} components of type {Type}", components.Count, componentType);
 
                 MonitorReportMapper.AddComponentTree(report, collectionName, components);
 
@@ -585,7 +585,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
             }
 
             var bucket = SelectObservedAtBucket(request.FromUtc, request.ToUtc);
-            Log.Debug("Requesting time series for {Count} metrics with bucket {Bucket}", metricIds.Count, bucket);
+            Log.Information("Requesting time series for {Count} metrics with bucket {Bucket}", metricIds.Count, bucket);
 
             var series = await _queries.GetMetricTimeSeriesAsync(
                 metricIds,
