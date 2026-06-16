@@ -562,7 +562,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
         /// </code>
         /// </example>
         public async Task<QueryResponse<MetricFeature>> GetMetricTimeSeriesAsync(
-            IEnumerable<int> metricIds,
+            IEnumerable<long> metricIds,
             DateTimeOffset fromUtc,
             DateTimeOffset toUtc,
             string bucket = "observed_at:15m",

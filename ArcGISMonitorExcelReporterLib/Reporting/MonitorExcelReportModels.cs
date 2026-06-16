@@ -193,26 +193,26 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// </summary>
         public List<LabelReportRow> Labels { get; set; } = [];
 
-            /// <summary>
-            /// Gets or sets the ArcGIS Monitor information (version and available resources).
-            /// </summary>
-            public MonitoringInfo? MonitoringInfo { get; set; }
+        /// <summary>
+        /// Gets or sets the ArcGIS Monitor information (version and available resources).
+        /// </summary>
+        public MonitoringInfo? MonitoringInfo { get; set; }
 
-            /// <summary>
-            /// Gets or sets the resource field information dictionary (resource name -> fields).
-            /// </summary>
-            public Dictionary<string, ResourceFieldInfo> ResourceFields { get; set; } = [];
+        /// <summary>
+        /// Gets or sets the resource field information dictionary (resource name -> fields).
+        /// </summary>
+        public Dictionary<string, ResourceFieldInfo> ResourceFields { get; set; } = [];
 
-                /// <summary>
-                /// Gets or sets the component types information (available component types and their fields).
-                /// </summary>
-                public ComponentTypesInfo? ComponentTypes { get; set; }
+        /// <summary>
+        /// Gets or sets the component types information (available component types and their fields).
+        /// </summary>
+        public ComponentTypesInfo? ComponentTypes { get; set; }
 
-                /// <summary>
-                /// Gets or sets the total execution time of the report generation process.
-                /// </summary>
-                public TimeSpan ExecutionTime { get; set; }
-            }
+        /// <summary>
+        /// Gets or sets the total execution time of the report generation process.
+        /// </summary>
+        public TimeSpan ExecutionTime { get; set; }
+    }
 
     /// <summary>
     /// Represents a summary row for a collection and component type combination.
@@ -242,7 +242,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// <summary>
         /// Gets or sets the unique component identifier.
         /// </summary>
-        public int ComponentId { get; set; }
+        public long ComponentId { get; set; }
 
         /// <summary>
         /// Gets or sets the date and time when the component was created (UTC).
@@ -473,7 +473,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// <summary>
         /// Gets or sets the component identifier this metric is associated with.
         /// </summary>
-        public int ComponentId { get; set; }
+        public long ComponentId { get; set; }
 
         /// <summary>
         /// Gets or sets the component name.
@@ -493,7 +493,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// <summary>
         /// Gets or sets the unique metric identifier.
         /// </summary>
-        public int MetricId { get; set; }
+        public long MetricId { get; set; }
 
         /// <summary>
         /// Gets or sets the metric name (e.g., "CPU Utilized", "Memory Available").
@@ -570,7 +570,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// <summary>
         /// Gets or sets the metric identifier.
         /// </summary>
-        public int MetricId { get; set; }
+        public long MetricId { get; set; }
 
         /// <summary>
         /// Gets or sets the metric name.
@@ -580,7 +580,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// <summary>
         /// Gets or sets the component identifier.
         /// </summary>
-        public int? ComponentId { get; set; }
+        public long? ComponentId { get; set; }
 
         /// <summary>
         /// Gets or sets the component name.
@@ -664,12 +664,12 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// <summary>
         /// Gets or sets the unique alert identifier.
         /// </summary>
-        public int AlertId { get; set; }
+        public long AlertId { get; set; }
 
         /// <summary>
         /// Gets or sets the metric identifier that triggered this alert.
         /// </summary>
-        public int? MetricId { get; set; }
+        public long? MetricId { get; set; }
 
         /// <summary>
         /// Gets or sets the metric name.
@@ -679,7 +679,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// <summary>
         /// Gets or sets the component identifier where the alert occurred.
         /// </summary>
-        public int? ComponentId { get; set; }
+        public long? ComponentId { get; set; }
 
         /// <summary>
         /// Gets or sets the component name.
@@ -740,7 +740,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// <summary>
         /// Gets or sets the unique agent identifier.
         /// </summary>
-        public int Id { get; set; }
+        public long Id { get; set; }
 
         /// <summary>
         /// Gets or sets when the agent was created (UTC).
@@ -791,7 +791,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// <summary>
         /// Gets or sets the unique label identifier.
         /// </summary>
-        public int Id { get; set; }
+        public long Id { get; set; }
 
         /// <summary>
         /// Gets or sets when the label was created (UTC).
@@ -1022,52 +1022,52 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                                                ClosedAt = a.ClosedAt,
                                                Operator = a.Operator,
                                                InfoThreshold = a.InfoThreshold,
-                                                                                               WarningThreshold = a.WarningThreshold,
-                                                                                               CriticalThreshold = a.CriticalThreshold,
-                                                                                               Duration = a.Duration
-                                                                                           });
-                                                               }
-                                                           }
-                                                       }
+                                               WarningThreshold = a.WarningThreshold,
+                                               CriticalThreshold = a.CriticalThreshold,
+                                               Duration = a.Duration
+                                           });
+                }
+            }
+        }
 
-                                                       /// <summary>
-                                                       /// Maps an agent feature to an AgentReportRow.
-                                                       /// </summary>
-                                                       /// <param name="agentFeature">The agent feature from the API response.</param>
-                                                       /// <returns>An AgentReportRow with all agent attributes.</returns>
-                                                       public static AgentReportRow MapAgentToRow(AttributeFeature<AgentAttributes> agentFeature)
-                                                       {
-                                                           var a = agentFeature.Attributes;
-                                                           return new AgentReportRow
-                                                           {
-                                                               Id = a.Id,
-                                                               CreatedAt = a.CreatedAt,
-                                                               Name = a.Name,
-                                                               Description = a.Description,
-                                                               Version = a.Version,
-                                                               Address = a.Address,
-                                                               Platform = a.Platform,
-                                                               IsConnected = a.IsConnected,
-                                                               ThroughConnectionId = a.ThroughConnectionId
-                                                           };
-                                                       }
+        /// <summary>
+        /// Maps an agent feature to an AgentReportRow.
+        /// </summary>
+        /// <param name="agentFeature">The agent feature from the API response.</param>
+        /// <returns>An AgentReportRow with all agent attributes.</returns>
+        public static AgentReportRow MapAgentToRow(AttributeFeature<AgentAttributes> agentFeature)
+        {
+            var a = agentFeature.Attributes;
+            return new AgentReportRow
+            {
+                Id = a.Id,
+                CreatedAt = a.CreatedAt,
+                Name = a.Name,
+                Description = a.Description,
+                Version = a.Version,
+                Address = a.Address,
+                Platform = a.Platform,
+                IsConnected = a.IsConnected,
+                ThroughConnectionId = a.ThroughConnectionId
+            };
+        }
 
-                                                       /// <summary>
-                                                       /// Maps a label feature to a LabelReportRow.
-                                                       /// </summary>
-                                                       /// <param name="labelFeature">The label feature from the API response.</param>
-                                                       /// <returns>A LabelReportRow with all label attributes.</returns>
-                                                       public static LabelReportRow MapLabelToRow(AttributeFeature<LabelAttributes> labelFeature)
-                                                       {
-                                                           var l = labelFeature.Attributes;
-                                                           return new LabelReportRow
-                                                           {
-                                                               Id = l.Id,
-                                                               CreatedAt = l.CreatedAt,
-                                                               Name = l.Name,
-                                                               Description = l.Description,
-                                                               Color = l.Color
-                                                           };
-                                                       }
-                                                   }
-                                               }
+        /// <summary>
+        /// Maps a label feature to a LabelReportRow.
+        /// </summary>
+        /// <param name="labelFeature">The label feature from the API response.</param>
+        /// <returns>A LabelReportRow with all label attributes.</returns>
+        public static LabelReportRow MapLabelToRow(AttributeFeature<LabelAttributes> labelFeature)
+        {
+            var l = labelFeature.Attributes;
+            return new LabelReportRow
+            {
+                Id = l.Id,
+                CreatedAt = l.CreatedAt,
+                Name = l.Name,
+                Description = l.Description,
+                Color = l.Color
+            };
+        }
+    }
+}
