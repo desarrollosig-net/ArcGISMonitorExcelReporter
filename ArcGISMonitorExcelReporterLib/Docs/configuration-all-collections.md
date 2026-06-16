@@ -37,7 +37,7 @@ The configuration file now supports querying **all collections** without specify
     "page_size": 100,
     "metric_bucket": "observed_at:15m",
     "include_metric_time_series": true,
-    "max_metric_ids_for_time_series": 5000
+    "max_metric_ids_for_time_series": null
   }
 }
 ```
@@ -98,7 +98,7 @@ JSON doesn't support explicit `null` easily, so use `""` or `"*"` instead.
 | `page_size` | integer | ❌ No | `100` | Number of records per page (100-500 recommended) |
 | `metric_bucket` | string | ❌ No | `"observed_at:15m"` | Time bucket for time series (e.g., `"observed_at:1h"`) |
 | `include_metric_time_series` | boolean | ❌ No | `true` | Include time series data in report |
-| `max_metric_ids_for_time_series` | integer | ❌ No | `5000` | Maximum metrics to fetch time series for |
+| `max_metric_ids_for_time_series` | integer | ❌ No | `null` | Maximum metrics to fetch time series for |
 
 ### End Time Configuration
 
@@ -208,7 +208,7 @@ JSON doesn't support explicit `null` easily, so use `""` or `"*"` instead.
     "page_size": 100,
     "metric_bucket": "observed_at:15m",
     "include_metric_time_series": true,
-    "max_metric_ids_for_time_series": 5000
+    "max_metric_ids_for_time_series": null
   }
 }
 ```

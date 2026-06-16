@@ -494,10 +494,10 @@ namespace ArcGISMonitorExcelReporterLib.Configuration
         /// <summary>
         /// Gets or sets the maximum number of metric IDs to include in time-series queries.
         /// Limits the scope of time-series data to prevent overwhelming large reports.
-        /// Default is 5000. Set to null for unlimited.
+        /// Default is null
         /// </summary>
         [JsonPropertyName("max_metric_ids_for_time_series")]
-        public int? MaxMetricIdsForTimeSeries { get; set; } = 5000;
+        public int? MaxMetricIdsForTimeSeries { get; set; } = null;
     }
 
     /// <summary>

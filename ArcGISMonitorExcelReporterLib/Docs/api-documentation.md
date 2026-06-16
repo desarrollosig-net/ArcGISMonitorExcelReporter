@@ -154,7 +154,7 @@ Report generation settings.
 - `PageSize`: Page size for paginated queries (default: 100)
 - `MetricBucket`: Time bucket for aggregation (default: "observed_at:15m")
 - `IncludeMetricTimeSeries`: Whether to fetch time series data (default: true)
-- `MaxMetricIdsForTimeSeries`: Maximum metrics for time series (default: 5000)
+- `MaxMetricIdsForTimeSeries`: Maximum metrics for time series (default: Unlimited)
 
 ### EndTimeConfiguration Class
 
@@ -573,7 +573,7 @@ catch (Exception ex)
 ## Performance Considerations
 
 - **Pagination**: Queries use pagination (default 100 records per page) to handle large datasets
-- **Time Series Limit**: By default, time series data is fetched for up to 5000 metrics (configurable)
+- **Time Series Limit**: By default, time series data is fetched for unlimited (configurable)
 - **Parallel Queries**: The library queries collections and component types sequentially
 - **Memory**: Large reports can consume significant memory; consider filtering metrics if memory is constrained
 - **Network**: Minimize network round-trips by including related resources in queries
