@@ -76,9 +76,9 @@ namespace ArcGISMonitorExcelReporterLib
 
             var reportService = new MonitorReportService(queryService);
 
-            Log.Information("Building report from {FromUtc:yyyy-MM-dd HH:mm:ss} to {ToUtc:yyyy-MM-dd HH:mm:ss} UTC",
-                configuration.ToReportRequest().FromUtc,
-                configuration.ToReportRequest().ToUtc);
+            Log.Information("Building report from {FromLocal:yyyy-MM-dd HH:mm:ss} to {ToLocal:yyyy-MM-dd HH:mm:ss} local time",
+                configuration.ToReportRequest().FromLocal,
+                configuration.ToReportRequest().ToLocal);
 
             var report = await reportService.BuildReportAsync(configuration.ToReportRequest(), cancellationToken).ConfigureAwait(false);
 

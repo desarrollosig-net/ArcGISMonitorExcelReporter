@@ -211,6 +211,8 @@ namespace ArcGISMonitorExcelReporterLib.Configuration
                 IncludeOnlyMetricNames = includeOnly,
                 ExcludeMetricNames = exclude,
                 AlertingOnOnly = metrics.AlertingOnOnly,
+                FromLocal = fromLocal,
+                ToLocal = toLocal,
                 FromUtc = new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(fromLocal.DateTime, timezone), TimeSpan.Zero),
                 ToUtc = new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(toLocal.DateTime, timezone), TimeSpan.Zero),
                 PageSize = Report.PageSize,

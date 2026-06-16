@@ -277,13 +277,13 @@ namespace ArcGISMonitorExcelReporterLib.Client
                     cancellationToken).ConfigureAwait(false);
                 var total = countResponse.Count;
 
-                Log.Debug("Total components to retrieve : {Total}", total);
+                Log.Information("Total components to retrieve : {Total}", total);
 
                 var components = new List<ComponentFeature>(Math.Max(total, 0));
 
                 for(var offset = 0; offset < Math.Max(total, 1); offset += pageSize)
                 {
-                    Log.Debug("Fetching components page: offset {Offset}, size {PageSize}", offset, pageSize);
+                    Log.Information("Fetching components page: offset {Offset}, size {PageSize}", offset, pageSize);
 
                     var request = MonitorQueryBuilders.AllComponentsWithMetrics(
                         where: "state = 'monitored'",
