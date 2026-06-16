@@ -359,7 +359,7 @@ namespace ArcGISMonitorExcelReporterLib.Models
     public sealed class CollectionAttributes
     {
         /// <summary>Unique identifier for the collection.</summary>
-        [JsonPropertyName("id")] public int Id { get; set; }
+        [JsonPropertyName("id")] public long Id { get; set; }
 
         /// <summary>Date and time when the collection was created (UTC).</summary>
         [JsonPropertyName("created_at")] public DateTimeOffset? CreatedAt { get; set; }
@@ -424,7 +424,7 @@ namespace ArcGISMonitorExcelReporterLib.Models
     public sealed class ComponentAttributes
     {
         /// <summary>Unique identifier for the component.</summary>
-        [JsonPropertyName("id")] public int Id { get; set; }
+        [JsonPropertyName("id")] public long Id { get; set; }
 
         /// <summary>Date and time when the component was created (UTC).</summary>
         [JsonPropertyName("created_at")] public DateTimeOffset? CreatedAt { get; set; }
@@ -561,7 +561,7 @@ namespace ArcGISMonitorExcelReporterLib.Models
     public sealed class MetricAttributes
     {
         /// <summary>Unique identifier for the metric.</summary>
-        [JsonPropertyName("id")] public int Id { get; set; }
+        [JsonPropertyName("id")] public long Id { get; set; }
 
         /// <summary>Date and time when the metric was created (UTC).</summary>
         [JsonPropertyName("created_at")] public DateTimeOffset? CreatedAt { get; set; }
@@ -694,7 +694,7 @@ namespace ArcGISMonitorExcelReporterLib.Models
     public sealed class AlertAttributes
     {
         /// <summary>Unique identifier for the alert.</summary>
-        [JsonPropertyName("id")] public int Id { get; set; }
+        [JsonPropertyName("id")] public long Id { get; set; }
 
         /// <summary>Date and time when the alert record was created (UTC).</summary>
         [JsonPropertyName("created_at")] public DateTimeOffset? CreatedAt { get; set; }
@@ -773,7 +773,7 @@ namespace ArcGISMonitorExcelReporterLib.Models
     public sealed class LabelAttributes
     {
         /// <summary>Unique identifier for the label.</summary>
-        [JsonPropertyName("id")] public int Id { get; set; }
+        [JsonPropertyName("id")] public long Id { get; set; }
 
         /// <summary>Date and time when the label was created (UTC).</summary>
         [JsonPropertyName("created_at")] public DateTimeOffset? CreatedAt { get; set; }
@@ -807,7 +807,7 @@ namespace ArcGISMonitorExcelReporterLib.Models
     public sealed class AgentAttributes
     {
         /// <summary>Unique identifier for the agent.</summary>
-        [JsonPropertyName("id")] public int Id { get; set; }
+        [JsonPropertyName("id")] public long Id { get; set; }
 
         /// <summary>Date and time when the agent was registered (UTC).</summary>
         [JsonPropertyName("created_at")] public DateTimeOffset? CreatedAt { get; set; }

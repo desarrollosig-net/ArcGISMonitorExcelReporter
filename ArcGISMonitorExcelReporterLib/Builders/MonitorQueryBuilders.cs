@@ -512,7 +512,7 @@ namespace ArcGISMonitorExcelReporterLib.Builders
         /// </code>
         /// </example>
         public static MetricQueryRequest MetricsTimeSeries(
-            IEnumerable<int> metricIds,
+            IEnumerable<long> metricIds,
             DateTimeOffset fromUtc,
             DateTimeOffset toUtc,
             string bucket = "observed_at:15m")
