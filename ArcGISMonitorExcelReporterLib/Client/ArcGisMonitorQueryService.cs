@@ -254,6 +254,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
             DateTimeOffset fromUtc,
             DateTimeOffset toUtc,
             int pageSize = 100,
+            IReadOnlyList<string>? componentTypes = null,
             CancellationToken cancellationToken = default)
         {
             // When querying all collections, use direct component query instead
@@ -263,9 +264,10 @@ namespace ArcGISMonitorExcelReporterLib.Client
             {
                 Log.Information("Getting component count...");
 
-                // Perform direct component query with state='monitored' filter
+                var whereClause = BuildComponentTypeWhere(componentTypes);
+
                 var countRequest = MonitorQueryBuilders.AllComponentsWithMetrics(
-                    where: "state = 'monitored'",
+                    where: whereClause,
                     fromUtc: fromUtc,
                     toUtc: toUtc,
                     returnCountOnly: true,
@@ -286,7 +288,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
                     Log.Information("Fetching components page: offset {Offset}, size {PageSize}", offset, pageSize);
 
                     var request = MonitorQueryBuilders.AllComponentsWithMetrics(
-                        where: "state = 'monitored'",
+                        where: whereClause,
                         fromUtc: fromUtc,
                         toUtc: toUtc,
                         returnCountOnly: false,
@@ -318,7 +320,8 @@ namespace ArcGISMonitorExcelReporterLib.Client
                     toUtc: toUtc,
                     returnCountOnly: true,
                     resultRecordCount: pageSize,
-                    resultOffset: 0);
+                    resultOffset: 0,
+                    componentTypeWhere: BuildComponentTypeWhere(componentTypes));
                 var countResponse = await _client.QueryCollectionsAsync(
                     countRequest,
                     cancellationToken).ConfigureAwait(false);
@@ -338,7 +341,8 @@ namespace ArcGISMonitorExcelReporterLib.Client
                         toUtc,
                         false,
                         pageSize,
-                        offset);
+                        offset,
+                        componentTypeWhere: BuildComponentTypeWhere(componentTypes));
 
                     var response = await _client.QueryCollectionsAsync(
                         request,
@@ -923,6 +927,22 @@ namespace ArcGISMonitorExcelReporterLib.Client
             Log.Debug("Completed fetching {Total} labels", labels.Count);
 
             return labels;
+        }
+
+        /// <summary>
+        /// Builds a SQL WHERE clause for filtering components by type.
+        /// </summary>
+        /// <param name="componentTypes">Types to include. Null or empty means all monitored components.</param>
+        /// <returns>A SQL WHERE clause string.</returns>
+        private static string BuildComponentTypeWhere(IReadOnlyList<string>? componentTypes)
+        {
+            if(componentTypes == null || componentTypes.Count == 0)
+            {
+                return "state = 'monitored'";
+            }
+
+            var escapedTypes = componentTypes.Select(t => $"'{t.Replace("'", "''", StringComparison.Ordinal)}'");
+            return $"state = 'monitored' AND type IN ({string.Join(", ", escapedTypes)})";
         }
     }
 }

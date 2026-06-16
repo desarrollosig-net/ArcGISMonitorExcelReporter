@@ -110,7 +110,7 @@ The `MetricDataAttributes` class captures the statistics from ArcGIS Monitor:
 ```csharp
 public sealed class MetricDataAttributes
 {
-    [JsonPropertyName("metric_id")] public int? MetricId { get; set; }
+    [JsonPropertyName("metric_id")] public long? MetricId { get; set; }
     [JsonPropertyName("observed_at")] public DateTimeOffset? ObservedAt { get; set; }
     [JsonPropertyName("COUNT_value")] public double? CountValue { get; set; }
     [JsonPropertyName("MIN_value")] public double? MinValue { get; set; }
@@ -129,9 +129,9 @@ The `MetricDataReportRow` class structures the data for Excel output:
 public sealed class MetricDataReportRow
 {
     public string CollectionName { get; set; }
-    public int MetricId { get; set; }
+    public long MetricId { get; set; }
     public string? MetricName { get; set; }
-    public int? ComponentId { get; set; }
+    public long? ComponentId { get; set; }
     public string? ComponentName { get; set; }
     public DateTimeOffset? ObservedAt { get; set; }
     public double? MinValue { get; set; }

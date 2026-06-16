@@ -304,13 +304,14 @@ namespace ArcGISMonitorExcelReporterLib.Builders
             DateTimeOffset toUtc,
             bool returnCountOnly = false,
             int resultRecordCount = 100,
-            int resultOffset = 0) => CollectionRequest(collectionName, new CollectionIncludeSpec
+            int resultOffset = 0,
+            string? componentTypeWhere = null) => CollectionRequest(collectionName, new CollectionIncludeSpec
             {
                 Resource = ComponentsResource,
                 ReturnCountOnly = returnCountOnly,
                 ResultRecordCount = resultRecordCount,
                 ResultOffset = resultOffset,
-                Where = null, // No type filter - get ALL components
+                Where = componentTypeWhere, // null = no type filter, get ALL components
                 Including =
                 [
                     new CollectionIncludeSpec

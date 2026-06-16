@@ -313,11 +313,9 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         {
             LogCollectionQuery(collectionName);
 
-            var allComponents = await FetchComponentsForCollectionAsync(collectionName, request, cancellationToken).ConfigureAwait(false);
+            var allComponents = await FetchComponentsForCollectionAsync(collectionName, typesToFilter, isAllTypes, request, cancellationToken).ConfigureAwait(false);
 
             Log.Information("Retrieved {Count} total components for {Collection}", allComponents.Count, collectionName);
-
-            allComponents = FilterComponentsByType(allComponents, typesToFilter, isAllTypes);
 
             ProcessComponentsByType(report, collectionName, allComponents);
         }
@@ -354,6 +352,8 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// </remarks>
         private async Task<List<ComponentFeature>> FetchComponentsForCollectionAsync(
             string collectionName,
+            List<string> typesToFilter,
+            bool isAllTypes,
             MonitorReportRequest request,
             CancellationToken cancellationToken)
         {
@@ -361,11 +361,11 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
 
             if(request.MetricNameLikes.Count == 0)
             {
-                allComponents.AddRange(await FetchAllComponentsWithMetricsAsync(collectionName, request, cancellationToken).ConfigureAwait(false));
+                allComponents.AddRange(await FetchAllComponentsWithMetricsAsync(collectionName, typesToFilter, isAllTypes, request, cancellationToken).ConfigureAwait(false));
             }
             else
             {
-                allComponents.AddRange(await FetchComponentsWithSpecificMetricsAsync(collectionName, request, cancellationToken).ConfigureAwait(false));
+                allComponents.AddRange(await FetchComponentsWithSpecificMetricsAsync(collectionName, typesToFilter, isAllTypes, request, cancellationToken).ConfigureAwait(false));
                 allComponents = [.. allComponents
                     .GroupBy(c => c.Attributes.Id)
                     .Select(MergeComponentMetrics)];
@@ -386,6 +386,8 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// </remarks>
         private async Task<List<ComponentFeature>> FetchAllComponentsWithMetricsAsync(
             string collectionName,
+            List<string> typesToFilter,
+            bool isAllTypes,
             MonitorReportRequest request,
             CancellationToken cancellationToken)
         {
@@ -398,11 +400,14 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 Log.Debug("Fetching all components with all metrics for {Collection}", collectionName);
             }
 
+            var componentTypes = isAllTypes ? null : typesToFilter;
+
             return await _queries.GetAllComponentsWithMetricsAsync(
                 collectionName,
                 request.FromUtc,
                 request.ToUtc,
                 request.PageSize,
+                componentTypes,
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -419,22 +424,29 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// </remarks>
         private async Task<List<ComponentFeature>> FetchComponentsWithSpecificMetricsAsync(
             string collectionName,
+            List<string> typesToFilter,
+            bool isAllTypes,
             MonitorReportRequest request,
             CancellationToken cancellationToken)
         {
             Log.Debug("Fetching components with specific metrics: {Metrics}", string.Join(", ", request.MetricNameLikes));
 
+            var componentTypes = isAllTypes ? ["*"] : typesToFilter;
             var components = new List<ComponentFeature>();
-            foreach(var metricNameLike in request.MetricNameLikes.Distinct(StringComparer.OrdinalIgnoreCase))
+
+            foreach(var componentType in componentTypes)
             {
-                components.AddRange(await _queries.GetComponentsWithMetricStatsAsync(
-                    collectionName,
-                    "*",
-                    metricNameLike,
-                    request.FromUtc,
-                    request.ToUtc,
-                    request.PageSize,
-                    cancellationToken).ConfigureAwait(false));
+                foreach(var metricNameLike in request.MetricNameLikes.Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    components.AddRange(await _queries.GetComponentsWithMetricStatsAsync(
+                        collectionName,
+                        componentType,
+                        metricNameLike,
+                        request.FromUtc,
+                        request.ToUtc,
+                        request.PageSize,
+                        cancellationToken).ConfigureAwait(false));
+                }
             }
 
             return components;
@@ -679,13 +691,13 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// Extracts time series data points from the API response and creates MetricDataReportRow entries.
         /// The returned list contains only the new time series rows and must be added to the report separately.
         /// </remarks>
-        private static List<MetricDataReportRow> ProcessMetricTimeSeries(MonitorExcelReport report, dynamic series)
+        private static List<MetricDataReportRow> ProcessMetricTimeSeries(MonitorExcelReport report, QueryResponse<MetricFeature> series)
         {
             var rows = new List<MetricDataReportRow>();
             foreach(var metric in series.Features)
             {
                 var metricAttributes = metric.Attributes;
-                var metricsData = metric.MetricsData ?? Enumerable.Empty<dynamic>();
+                var metricsData = metric.MetricsData ?? [];
 
                 foreach(var data in metricsData)
                 {
@@ -1017,7 +1029,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// This helper method is used when processing time series data to associate
         /// each data point with the correct collection.
         /// </remarks>
-        private static string ResolveCollectionName(MonitorExcelReport report, int metricId) => report.Metrics.FirstOrDefault(m => m.MetricId == metricId)?.CollectionName ?? string.Empty;
+        private static string ResolveCollectionName(MonitorExcelReport report, long metricId) => report.Metrics.FirstOrDefault(m => m.MetricId == metricId)?.CollectionName ?? string.Empty;
 
         /// <summary>
         /// Calculates the 95th percentile (P95) of a normal distribution using exact statistics, constrained by the maximum observed value.
