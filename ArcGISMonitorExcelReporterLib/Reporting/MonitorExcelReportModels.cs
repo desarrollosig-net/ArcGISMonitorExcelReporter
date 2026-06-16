@@ -347,7 +347,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// <summary>
         /// Gets or sets the ID of the connection used to monitor this component.
         /// </summary>
-        public int? ConnectionId { get; set; }
+        public long? ConnectionId { get; set; }
 
         /// <summary>
         /// Gets or sets the date and time when the SSL/TLS certificate expires (UTC).
@@ -780,7 +780,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// <summary>
         /// Gets or sets the ID of the connection through which this agent connects (null for direct connections).
         /// </summary>
-        public int? ThroughConnectionId { get; set; }
+        public long? ThroughConnectionId { get; set; }
     }
 
     /// <summary>

@@ -454,7 +454,7 @@ namespace ArcGISMonitorExcelReporterLib.Models
         [JsonPropertyName("state")] public string? State { get; set; }
 
         /// <summary>ID of the connection used to monitor this component.</summary>
-        [JsonPropertyName("connection_id")] public int? ConnectionId { get; set; }
+        [JsonPropertyName("connection_id")] public long? ConnectionId { get; set; }
 
         /// <summary>Version number of the component software.</summary>
         [JsonPropertyName("version")] public string? Version { get; set; }
@@ -576,10 +576,10 @@ namespace ArcGISMonitorExcelReporterLib.Models
         [JsonPropertyName("base_r_id")] public string? BaseRId { get; set; }
 
         /// <summary>ID of the component this metric belongs to.</summary>
-        [JsonPropertyName("component_id")] public int? ComponentId { get; set; }
+        [JsonPropertyName("component_id")] public long? ComponentId { get; set; }
 
         /// <summary>ID of the observer collecting this metric.</summary>
-        [JsonPropertyName("observer_id")] public int? ObserverId { get; set; }
+        [JsonPropertyName("observer_id")] public long? ObserverId { get; set; }
 
         /// <summary>Status code of the metric.</summary>
         [JsonPropertyName("status")] public int? Status { get; set; }
@@ -645,7 +645,7 @@ namespace ArcGISMonitorExcelReporterLib.Models
     public sealed class MetricDataAttributes
     {
         /// <summary>ID of the metric this data belongs to.</summary>
-        [JsonPropertyName("metric_id")] public int? MetricId { get; set; }
+        [JsonPropertyName("metric_id")] public long? MetricId { get; set; }
 
         /// <summary>Timestamp when the metric was observed or the start of the aggregation bucket (UTC).</summary>
         [JsonPropertyName("observed_at")] public DateTimeOffset? ObservedAt { get; set; }
@@ -706,13 +706,13 @@ namespace ArcGISMonitorExcelReporterLib.Models
         [JsonPropertyName("closed_at")] public DateTimeOffset? ClosedAt { get; set; }
 
         /// <summary>ID of the metric that triggered this alert.</summary>
-        [JsonPropertyName("metric_id")] public int? MetricId { get; set; }
+        [JsonPropertyName("metric_id")] public long? MetricId { get; set; }
 
         /// <summary>ID of the observer monitoring the metric.</summary>
-        [JsonPropertyName("observer_id")] public int? ObserverId { get; set; }
+        [JsonPropertyName("observer_id")] public long? ObserverId { get; set; }
 
         /// <summary>ID of the component the metric belongs to.</summary>
-        [JsonPropertyName("component_id")] public int? ComponentId { get; set; }
+        [JsonPropertyName("component_id")] public long? ComponentId { get; set; }
 
         /// <summary>Alert state/severity level (e.g., "info", "warning", "critical").</summary>
         [JsonPropertyName("state")] public string? State { get; set; }
@@ -831,7 +831,7 @@ namespace ArcGISMonitorExcelReporterLib.Models
         [JsonPropertyName("is_connected")] public bool? IsConnected { get; set; }
 
         /// <summary>ID of the connection through which this agent connects (null for direct connections).</summary>
-        [JsonPropertyName("through_connection_id")] public int? ThroughConnectionId { get; set; }
+        [JsonPropertyName("through_connection_id")] public long? ThroughConnectionId { get; set; }
     }
 
     /// <summary>
