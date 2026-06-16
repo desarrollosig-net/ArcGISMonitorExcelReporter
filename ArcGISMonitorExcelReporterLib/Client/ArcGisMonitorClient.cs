@@ -19,8 +19,14 @@ namespace ArcGISMonitorExcelReporterLib.Client
         private readonly HttpClient _httpClient;
         private readonly bool _disposeClient;
         private readonly JsonSerializerOptions _jsonOptions;
+        private readonly SemaphoreSlim _tokenRefreshLock = new(1, 1);
+
         private string? _accessToken;
         private DateTimeOffset _tokenExpiresAtUtc;
+
+        // Credentials for automatic re-authentication
+        private string? _cachedUsername;
+        private string? _cachedPassword;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ArcGisMonitorClient"/> class.
@@ -83,6 +89,10 @@ namespace ArcGISMonitorExcelReporterLib.Client
 
             _accessToken = token.AccessToken;
             _tokenExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(Math.Max(0, token.ExpiresIn - 60));
+
+            // Cache credentials for automatic re-authentication
+            _cachedUsername = username;
+            _cachedPassword = password;
 
             Log.Debug("Authentication token acquired, expires at: {ExpiresAt:yyyy-MM-dd HH:mm:ss} UTC", _tokenExpiresAtUtc);
 
@@ -150,6 +160,38 @@ namespace ArcGISMonitorExcelReporterLib.Client
                 cancellationToken).ConfigureAwait(false);
 
         /// <summary>
+        /// Queries agents from ArcGIS Monitor using the /monitoring/agents/query endpoint.
+        /// </summary>
+        /// <param name="request">The agent query request parameters.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>A query response containing agent features.</returns>
+        /// <exception cref="InvalidOperationException">Thrown if no token is configured or the token is expired.</exception>
+        /// <exception cref="HttpRequestException">Thrown if the HTTP request fails.</exception>
+        public async Task<QueryResponse<AttributeFeature<AgentAttributes>>> QueryAgentsAsync(
+            QueryRequest request,
+            CancellationToken cancellationToken = default) => await PostAsync<QueryRequest, QueryResponse<AttributeFeature<AgentAttributes>>>(
+                "monitoring/agents/query",
+                request,
+                requiresBearer: true,
+                cancellationToken).ConfigureAwait(false);
+
+        /// <summary>
+        /// Queries labels from ArcGIS Monitor using the /monitoring/labels/query endpoint.
+        /// </summary>
+        /// <param name="request">The label query request parameters.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>A query response containing label features.</returns>
+        /// <exception cref="InvalidOperationException">Thrown if no token is configured or the token is expired.</exception>
+        /// <exception cref="HttpRequestException">Thrown if the HTTP request fails.</exception>
+        public async Task<QueryResponse<AttributeFeature<LabelAttributes>>> QueryLabelsAsync(
+            QueryRequest request,
+            CancellationToken cancellationToken = default) => await PostAsync<QueryRequest, QueryResponse<AttributeFeature<LabelAttributes>>>(
+                "monitoring/labels/query",
+                request,
+                requiresBearer: true,
+                cancellationToken).ConfigureAwait(false);
+
+        /// <summary>
         /// Sends a POST request to the ArcGIS Monitor API and deserializes the response.
         /// </summary>
         /// <typeparam name="TRequest">The type of the request object.</typeparam>
@@ -170,15 +212,8 @@ namespace ArcGISMonitorExcelReporterLib.Client
         {
             if(requiresBearer)
             {
-                if(string.IsNullOrWhiteSpace(_accessToken))
-                {
-                    throw new InvalidOperationException("No token configured. Execute AuthenticateAsync or SetBearerToken before querying ArcGIS Monitor.");
-                }
-
-                if(_tokenExpiresAtUtc <= DateTimeOffset.UtcNow)
-                {
-                    throw new InvalidOperationException("Token is expired or about to expire. Renew authentication before executing the query.");
-                }
+                // Ensure token is valid, automatically re-authenticate if needed
+                await EnsureValidTokenAsync(cancellationToken).ConfigureAwait(false);
             }
 
             using var message = new HttpRequestMessage(HttpMethod.Post, relativeUrl)
@@ -204,6 +239,96 @@ namespace ArcGISMonitorExcelReporterLib.Client
         }
 
         /// <summary>
+        /// Sends a GET request to the ArcGIS Monitor API and deserializes the response.
+        /// </summary>
+        /// <typeparam name="TResponse">The type of the expected response object.</typeparam>
+        /// <param name="relativeUrl">The relative API endpoint URL.</param>
+        /// <param name="requiresBearer">Whether a bearer token is required for this request. Default is true.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>The deserialized response object.</returns>
+        /// <exception cref="InvalidOperationException">Thrown if bearer authentication is required but no valid token is available.</exception>
+        /// <exception cref="HttpRequestException">Thrown if the HTTP request fails.</exception>
+        /// <exception cref="JsonException">Thrown if the response cannot be deserialized.</exception>
+        public async Task<TResponse?> GetAsync<TResponse>(
+            string relativeUrl,
+            bool requiresBearer = false,
+            CancellationToken cancellationToken = default) where TResponse : class
+        {
+            if(requiresBearer)
+            {
+                // Ensure token is valid, automatically re-authenticate if needed
+                await EnsureValidTokenAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            using var message = new HttpRequestMessage(HttpMethod.Get, relativeUrl);
+
+            if(requiresBearer)
+            {
+                message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+            }
+
+            using var response = await _httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+            if(!response.IsSuccessStatusCode)
+            {
+                throw new HttpRequestException($"Error HTTP {(int)response.StatusCode} {response.ReasonPhrase}. Body: {body}");
+            }
+
+            var result = JsonSerializer.Deserialize<TResponse>(body, _jsonOptions);
+            return result ?? throw new JsonException($"Empty or invalid JSON response for {relativeUrl}.");
+        }
+
+        /// <summary>
+        /// Ensures that a valid bearer token is available, automatically re-authenticating if needed.
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <exception cref="InvalidOperationException">Thrown if no credentials are available or re-authentication fails.</exception>
+        /// <remarks>
+        /// This method is thread-safe and uses a SemaphoreSlim to prevent concurrent re-authentication attempts.
+        /// If the token is expired or about to expire (within 60 seconds), it will attempt to re-authenticate
+        /// using the cached credentials from the initial authentication.
+        /// </remarks>
+        private async Task EnsureValidTokenAsync(CancellationToken cancellationToken = default)
+        {
+            // Quick check without lock - if token is still valid, return immediately
+            if(!string.IsNullOrWhiteSpace(_accessToken) && _tokenExpiresAtUtc > DateTimeOffset.UtcNow)
+            {
+                return;
+            }
+
+            // Token is invalid/expired, acquire lock to refresh
+            await _tokenRefreshLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                // Double-check after acquiring lock - another thread may have already refreshed
+                if(!string.IsNullOrWhiteSpace(_accessToken) && _tokenExpiresAtUtc > DateTimeOffset.UtcNow)
+                {
+                    return;
+                }
+
+                // Token is definitely invalid, attempt re-authentication
+                if(string.IsNullOrWhiteSpace(_cachedUsername) || string.IsNullOrWhiteSpace(_cachedPassword))
+                {
+                    throw new InvalidOperationException(
+                        "Token has expired and no credentials are available for re-authentication. " +
+                        "Call AuthenticateAsync() first or ensure credentials were cached during initial authentication.");
+                }
+
+                Log.Information("Token expired or invalid. Attempting automatic re-authentication for user: {Username}",
+                    _cachedUsername);
+
+                await AuthenticateAsync(_cachedUsername, _cachedPassword, cancellationToken).ConfigureAwait(false);
+
+                Log.Information("Automatic re-authentication successful");
+            }
+            finally
+            {
+                _tokenRefreshLock.Release();
+            }
+        }
+
+        /// <summary>
         /// Disposes the HTTP client if it was created by this instance.
         /// </summary>
         public void Dispose()
@@ -212,6 +337,8 @@ namespace ArcGISMonitorExcelReporterLib.Client
             {
                 _httpClient.Dispose();
             }
+
+            _tokenRefreshLock?.Dispose();
         }
     }
 }

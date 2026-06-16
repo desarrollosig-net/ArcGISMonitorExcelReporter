@@ -1,13 +1,17 @@
 ﻿using ArcGISMonitorExcelReporterLib;
 
 using ReporterConfiguration = ArcGISMonitorExcelReporterLib.Configuration.Configuration;
-using Reporter = ArcGISMonitorExcelReporterLib.ArcGISMonitorExcelReporter;
+using Reporter = ArcGISMonitorExcelReporterLib.ArcGisMonitorExcelReporter;
 
 using Serilog;
+using System.Diagnostics;
 
 // This application creates two folders relative to the configuration file location:
 // - logs/: Contains rolling log files (arcgis-monitor-reporter-{date}.log)
 // - reports/: Contains generated Excel reports ({config-name}_{yyyyMMdd_HHmm}.xlsx)
+
+// Start measuring execution time
+var stopwatch = Stopwatch.StartNew();
 
 // Parse command line arguments
 if(!TryParseArguments(args, out var configFilePath))
@@ -54,10 +58,12 @@ try
             outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
         .CreateLogger();
 
-    Log.Information("=============================================================");
+    var decoration = new string('=', 60);
+
+    Log.Information(decoration);
     Log.Information("=== ArcGIS Monitor Excel Reporter {Version} ===", VersionInfo.Version);
     Log.Information("=== Build: {BuildTimestamp} ===", VersionInfo.BuildTimestamp);
-    Log.Information("=============================================================");
+    Log.Information(decoration);
     Log.Information("Configuration file: {ConfigPath}", configFilePath);
     Log.Information("Reports folder: {ReportsFolder}", reportsFolder);
     Log.Information("Logs folder: {LogsFolder}", logsFolder);
@@ -78,13 +84,18 @@ try
     await reporter.GenerateExcelAsync(
         configuration,
         outputExcelPath,
+        stopwatch,
         cancellationToken);
 
-    Log.Information("=============================================================");
+    stopwatch.Stop();
+    var executionTime = stopwatch.Elapsed;
+
+    Log.Information(decoration);
     Log.Information("=== Report generated successfully ===");
     Log.Information("=== Output: {OutputPath} ===", outputExcelPath);
+    Log.Information("=== Execution time: {ExecutionTime} ===", executionTime.ToString("hh\\:mm\\:ss"));
     Log.Information("=== Version: {Version} ===", VersionInfo.Version);
-    Log.Information("=============================================================");
+    Log.Information(decoration);
     return 0; // Exit with success code
 }
 catch(Exception ex)
@@ -166,8 +177,8 @@ static void ShowHelp()
 {
     Console.WriteLine($"ArcGIS Monitor Excel Reporter v{VersionInfo.Version}");
     Console.WriteLine($"Build: {VersionInfo.BuildTimestamp}");
-    Console.WriteLine("========================================================");
-    Console.WriteLine();
+    var decoration = new string('=', 60);
+    Console.WriteLine(decoration);
     Console.WriteLine("Usage:");
     Console.WriteLine("  ArcGISMonitorExcelReporter -f <config-file>");
     Console.WriteLine("  ArcGISMonitorExcelReporter -h | --help");

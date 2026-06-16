@@ -53,7 +53,7 @@ namespace ArcGISMonitorExcelReporterLib.Samples
         public static async Task GenerateFromJsonAsync(CancellationToken cancellationToken = default)
         {
             var configuration = await ReporterConfiguration.LoadAsync("agm2023x.json", cancellationToken);
-            var reporter = new ArcGISMonitorExcelReporter();
+            var reporter = new ArcGisMonitorExcelReporter();
 
             await reporter.GenerateExcelAsync(
                 configuration,
@@ -156,7 +156,7 @@ namespace ArcGISMonitorExcelReporterLib.Samples
             };
 
             // Instantiate the Excel report generator
-            var reporter = new ArcGISMonitorExcelReporter();
+            var reporter = new ArcGisMonitorExcelReporter();
 
             // Generate the Excel file asynchronously
             await reporter.GenerateExcelAsync(configuration, "ArcGISMonitorReport.xlsx", cancellationToken);

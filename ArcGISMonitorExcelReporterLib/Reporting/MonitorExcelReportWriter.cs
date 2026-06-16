@@ -1,7 +1,9 @@
 using ArcGISMonitorExcelReporterLib.Configuration;
+using ArcGISMonitorExcelReporterLib.Models;
 
 using ClosedXML.Excel;
 
+using System.Drawing;
 using System.Reflection;
 
 using Serilog;
@@ -39,7 +41,13 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
     /// </para>
     /// </remarks>
     public sealed class MonitorExcelReportWriter
+
     {
+#pragma warning disable S1192
+        private const string UnknownValue = "Unknown";
+#pragma warning restore S1192
+        private const int MaxTimeSeriesColumns = 100;
+
         /// <summary>
         /// Saves an ArcGIS Monitor report to an Excel (.xlsx) file.
         /// </summary>
@@ -112,16 +120,25 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
             try
             {
                 Log.Debug("Writing Inputs sheet...");
-                WriteInputs(workbook, sheetRegistry, report);
+                WriteInputs(workbook, sheetRegistry, report, "Inputs");
 
                 Log.Debug("Writing Summary sheet...");
-                WriteSummary(workbook, sheetRegistry, report);
+                WriteSummary(workbook, sheetRegistry, report, "Summary", "Agents", "Labels");
 
                 Log.Debug("Writing Components sheets by type...");
                 WriteComponentsWithMetricsSheets(workbook, sheetRegistry, report);
 
+                Log.Debug("Writing Agents, Labels & Metrics sheet...");
+                WriteAgentsLabelsMetricsSheet(workbook, sheetRegistry, report);
+
+                Log.Debug("Writing Agents sheet ({Count} rows)...", report.Agents.Count);
+                WriteAgentsSheet(workbook, sheetRegistry, report.Agents, report);
+
                 Log.Debug("Writing Alerts sheet ({Count} rows)...", report.Alerts.Count);
-                WriteAlertsSheet(workbook, sheetRegistry, report.Alerts);
+                WriteAlertsSheet(workbook, sheetRegistry, report.Alerts, report);
+
+                Log.Debug("Writing Labels sheet ({Count} rows)...", report.Labels.Count);
+                WriteLabelsSheet(workbook, sheetRegistry, report.Labels, report);
 
                 Log.Information("Saving Excel file to: {OutputPath}", outputPath);
                 workbook.SaveAs(outputPath);
@@ -157,10 +174,10 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// <remarks>
         /// Displays information such as generation dates, time range, and totals of components/metrics/alerts.
         /// </remarks>
-        private static void WriteInputs(XLWorkbook workbook, SheetRegistry sheetRegistry, MonitorExcelReport report)
+        private static void WriteInputs(XLWorkbook workbook, SheetRegistry sheetRegistry, MonitorExcelReport report, string sheetName)
         {
-            var ws = workbook.Worksheets.Add("Inputs");
-            sheetRegistry.Register("Inputs", "Inputs");
+            var ws = workbook.Worksheets.Add(sheetName);
+            sheetRegistry.Register(sheetName, sheetName);
 
             ws.Cell(1, 1).Value = "Report Parameters";
             ws.Cell(1, 1).Style.Font.Bold = true;
@@ -171,6 +188,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
             var metadata = new (string Label, object? Value)[]
             {
                 ("Server URL",              report.ServerUrl),
+                ("ArcGIS Monitor Version",  report.MonitoringInfo?.Version),
                 ("Collection",              !string.IsNullOrWhiteSpace(report.CollectionName) && report.CollectionName.Trim() != "*"
                                                 ? report.CollectionName
                                                 : null),
@@ -180,6 +198,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 ("Past Days",               (object)report.PastDays),
                 ("Past Hours",              (object)report.PastHours),
                 ("Timezone",                report.Timezone),
+                ("Execution Time",          report.ExecutionTime.ToString("hh\\:mm\\:ss")),
                 ("Total Components Types",  report.Collections.Count),
                 ("Total Components",        report.Components.Count),
                 ("Total Metrics",           report.Metrics.Count),
@@ -237,10 +256,10 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// </description></item>
         /// </list>
         /// </remarks>
-        private static void WriteSummary(XLWorkbook workbook, SheetRegistry sheetRegistry, MonitorExcelReport report)
+        private static void WriteSummary(XLWorkbook workbook, SheetRegistry sheetRegistry, MonitorExcelReport report, string sheetName, string agentsSheetName, string labelsSheetName)
         {
-            var ws = workbook.Worksheets.Add("Summary");
-            sheetRegistry.Register("Summary", "Summary");
+            var ws = workbook.Worksheets.Add(sheetName);
+            sheetRegistry.Register(sheetName, sheetName);
 
             ws.Cell(1, 1).Value = "ArcGIS Monitor - Summary Report";
             ws.Cell(1, 1).Style.Font.Bold = true;
@@ -252,13 +271,11 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 .Select(g =>
                 {
                     var componentIds = g.Select(c => c.ComponentId).ToList();
-                    var componentMetrics = report.Metrics.Where(m => componentIds.Contains(m.ComponentId)).ToList();
-                    var metricIds = componentMetrics.Select(m => m.MetricId).ToList();
                     var componentAlerts = report.Alerts.Where(a => componentIds.Contains(a.ComponentId ?? 0)).ToList();
 
                     return new
                     {
-                        ComponentType = g.Key.Type ?? "Unknown",
+                        ComponentType = g.Key.Type ?? UnknownValue,
                         Category = g.Key.Subtype ?? "General",
                         ComponentCount = g.Count(),
 
@@ -314,7 +331,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
             row++;
 
             var componentsByType = report.Components
-                .GroupBy(c => c.Type ?? "Unknown")
+                .GroupBy(c => c.Type ?? UnknownValue)
                 .OrderBy(g => g.Key);
 
             foreach(var group in componentsByType)
@@ -331,7 +348,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 // Links to metrics for this component type (normalized for grouping)
                 var metricsForType = report.Metrics
                     .Where(m => componentIds.Contains(m.ComponentId))
-                    .Select(m => NormalizeMetricName(m.MetricName ?? "Unknown"))
+                    .Select(m => NormalizeMetricName(m.MetricName ?? UnknownValue))
                     .Distinct()
                     .OrderBy(m => m);
 
@@ -344,7 +361,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
 
                     // Display with spaces in the index
                     WriteIndexLink(ws, row++, summarySheet, $"  • {metricName} - Summary", "Aggregated data and alerts");
-                    WriteIndexLink(ws, row++, timeSeriesSheet, $"  • {metricName} - Time Series", "Max every 15 min with chart");
+                    WriteIndexLink(ws, row++, timeSeriesSheet, $"  • {metricName} - Time Series", $"Max every {FormatBucketLabel(report.MetricDataBucket)} with chart");
                 }
 
                 row++; // Blank line between component types
@@ -352,6 +369,12 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
 
             row += 1;
             WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName("Alerts"), "Alerts", "All alerts across components");
+
+            row += 1;
+            WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName(agentsSheetName), "Agents", "All agents configured in ArcGIS Monitor");
+
+            row += 1;
+            WriteIndexLink(ws, row++, sheetRegistry.GetOrCreatePhysicalName(labelsSheetName), "Labels", "All labels available in ArcGIS Monitor");
 
             ws.Columns().AdjustToContents();
             ws.SheetView.FreezeRows(summaryTableLastRow);
@@ -442,7 +465,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 {
                     // Remove the dynamic suffix (trim trailing spaces and hyphen)
                     var normalized = prefix.TrimEnd(' ', '-');
-                    Log.Debug("Normalized metric for consolidation: '{Original}' → '{Normalized}'", metricName, normalized);
+                    Log.Debug("Normalized metric for consolidation: '{Original}' -> '{Normalized}'", metricName, normalized);
                     return normalized;
                 }
             }
@@ -503,8 +526,11 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                     ws.Cell(2, 1).Style.Fill.BackgroundColor = XLColor.FromArgb(68, 114, 196); // Blue
                     ws.Cell(2, 1).Style.Font.FontColor = XLColor.White;
 
-                    // Write components table with non-empty columns only
-                    WriteComponentsSummaryTable(ws, 4, componentsList);
+                    // Get available fields for this component type from metadata
+                    var availableFieldsForType = GetComponentTypeFields(report.ComponentTypes, componentType);
+
+                    // Write components table with type-specific fields
+                    WriteComponentsSummaryTable(ws, 4, componentsList, report, availableFieldsForType);
 
                     ws.Columns().AdjustToContents();
 
@@ -558,6 +584,141 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Gets available field names for a specific component type from the component types metadata.
+        /// </summary>
+        private static List<string>? GetComponentTypeFields(ComponentTypesInfo? componentTypes, string componentType)
+        {
+            if(componentTypes?.Types == null || componentTypes.Types.Count == 0)
+            {
+                return null;
+            }
+
+            var typeDefinition = componentTypes.Types.FirstOrDefault(t =>
+                t.Name?.Equals(componentType, StringComparison.OrdinalIgnoreCase) ?? false);
+
+            if(typeDefinition?.Names != null && typeDefinition.Names.Count > 0)
+            {
+                Log.Debug("Found {Count} fields for component type '{ComponentType}': {Fields}",
+                    typeDefinition.Names.Count, componentType, string.Join(", ", typeDefinition.Names));
+                return typeDefinition.Names;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Converts snake_case API field names to PascalCase C# property names.
+        /// Examples: "address_internal" -> "AddressInternal", "cpu_cores_physical" -> "CpuCoresPhysical"
+        /// </summary>
+        private static string ConvertSnakeCaseToPascalCase(string snakeCaseField)
+        {
+            if(string.IsNullOrWhiteSpace(snakeCaseField))
+            {
+                return snakeCaseField;
+            }
+
+            var parts = snakeCaseField.Split('_');
+            var pascalCase = string.Concat(parts.Select(part =>
+                char.ToUpperInvariant(part[0]) + (part.Length > 1 ? part.Substring(1) : "")));
+
+            return pascalCase;
+        }
+
+        /// <summary>
+        /// Maps API field names (snake_case) to ComponentReportRow property names.
+        /// Returns a HashSet of property names that match the API field names.
+        /// </summary>
+        private static HashSet<string> MapApiFieldsToProperties(List<string>? apiFields)
+        {
+            var propertyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if(apiFields == null || apiFields.Count == 0)
+            {
+                return propertyNames;
+            }
+
+            foreach(var apiField in apiFields)
+            {
+                // Convert snake_case to PascalCase
+                var propertyName = ConvertSnakeCaseToPascalCase(apiField);
+                propertyNames.Add(propertyName);
+            }
+
+            return propertyNames;
+        }
+
+        /// <summary>
+        /// Builds a dictionary mapping property names to their display aliases from ResourceFields.
+        /// Falls back to property name if alias is not available.
+        /// </summary>
+        private static Dictionary<string, string> BuildPropertyAliasMapping(
+            Dictionary<string, ResourceFieldInfo>? resourceFields)
+        {
+            var aliasMapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            if(resourceFields == null)
+            {
+                Log.Debug("No resource fields available. Using property names as headers.");
+                return aliasMapping;
+            }
+
+            // Try to map from components, alerts, or other resource types
+            var resourcesToTry = new[] { "components", "alerts", "metrics", "agents" };
+            var allFields = new List<FieldDefinition>();
+
+            foreach(var resourceName in resourcesToTry)
+            {
+                if(!resourceFields.ContainsKey(resourceName))
+                {
+                    continue;
+                }
+
+                var resourceInfo = resourceFields[resourceName];
+                if(resourceInfo?.Fields == null || resourceInfo.Fields.Count == 0)
+                {
+                    continue;
+                }
+
+                Log.Debug("Found {Count} field definitions for resource '{Resource}'", 
+                    resourceInfo.Fields.Count, resourceName);
+                allFields.AddRange(resourceInfo.Fields);
+            }
+
+            if(allFields.Count == 0)
+            {
+                Log.Debug("No field definitions available. Using property names as headers.");
+                return aliasMapping;
+            }
+
+            foreach(var field in allFields)
+            {
+                if(string.IsNullOrWhiteSpace(field.Name))
+                {
+                    continue;
+                }
+
+                // Convert API field name (snake_case) to property name (PascalCase)
+                var propertyName = ConvertSnakeCaseToPascalCase(field.Name);
+
+                // Skip if already mapped (first occurrence wins)
+                if(aliasMapping.ContainsKey(propertyName))
+                {
+                    continue;
+                }
+
+                // Use alias if available, otherwise use the field name
+                var displayName = !string.IsNullOrWhiteSpace(field.Alias) ? field.Alias : field.Name;
+
+                aliasMapping[propertyName] = displayName;
+
+                Log.Debug("Mapped property '{PropertyName}' to alias '{DisplayName}'", propertyName, displayName);
+            }
+
+            Log.Information("Built alias mapping for {Count} total fields from multiple resources", aliasMapping.Count);
+            return aliasMapping;
         }
 
         /// <summary>
@@ -623,7 +784,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
 
             if(uniqueMetrics.Count != metrics.Count)
             {
-                Log.Warning("Removed {Count} duplicate metric(s) in metric component data table. Original: {Original}, Unique: {Unique}",
+                Log.Debug("Removed {Count} duplicate metric(s) in metric component data table. Original: {Original}, Unique: {Unique}",
                     metrics.Count - uniqueMetrics.Count, metrics.Count, uniqueMetrics.Count);
             }
 
@@ -703,10 +864,10 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
 
                 // Write row - Identification columns first
                 ws.Cell(currentRow, 1).Value = metric.ComponentId;
-                ws.Cell(currentRow, 2).Value = metric.ComponentName ?? "Unknown";
-                ws.Cell(currentRow, 3).Value = metric.MetricName ?? "Unknown";
+                ws.Cell(currentRow, 2).Value = metric.ComponentName ?? UnknownValue;
+                ws.Cell(currentRow, 3).Value = metric.MetricName ?? UnknownValue;
                 ws.Cell(currentRow, 4).Value = metric.MetricId;
-                ws.Cell(currentRow, 5).Value = metric.ComponentType ?? "Unknown";
+                ws.Cell(currentRow, 5).Value = metric.ComponentType ?? UnknownValue;
                 ws.Cell(currentRow, 6).Value = metric.ComponentSubtype ?? string.Empty;
 
                 // Unit
@@ -774,7 +935,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         }
 
         /// <summary>
-        /// Writes a metric time series sheet with max values every 15 minutes by component.
+        /// Writes a metric time series sheet with max values grouped by the selected observed_at bucket interval.
         /// </summary>
         private static void WriteMetricTimeSeriesSheet(
             XLWorkbook workbook,
@@ -796,12 +957,30 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 var row = 2;
 
                 // Title (metricName is already normalized for process metrics, keep spaces)
-                ws.Cell(row, 1).Value = $"Time Series: {metricName} ({componentType}) - Max every {report.MetricDataBucket}";
+                var bucketLabel = FormatBucketLabel(report.MetricDataBucket);
+                ws.Cell(row, 1).Value = $"Time Series: {metricName} ({componentType}) - Max every {bucketLabel}";
                 ws.Cell(row, 1).Style.Font.Bold = true;
                 ws.Cell(row, 1).Style.Font.FontSize = 16;
                 ws.Cell(row, 1).Style.Fill.BackgroundColor = XLColor.FromArgb(68, 114, 196);
                 ws.Cell(row, 1).Style.Font.FontColor = XLColor.White;
                 row += 2;
+
+                // Select top MaxTimeSeriesColumns metrics ranked by MaxValue from aggregated MetricData
+                var allMetricIds = metrics.Select(m => m.MetricId).ToHashSet();
+                if(allMetricIds.Count > MaxTimeSeriesColumns)
+                {
+                    var topMetricIds = report.MetricData
+                        .Where(md => allMetricIds.Contains(md.MetricId) && md.MaxValue.HasValue)
+                        .OrderByDescending(md => md.MaxValue!.Value)
+                        .Take(MaxTimeSeriesColumns)
+                        .Select(md => md.MetricId)
+                        .ToHashSet();
+
+                    Log.Warning(
+                        "Time series for '{MetricName}' in '{ComponentType}': limiting to top {Max} of {Total} metrics by MaxValue.",
+                        metricName, componentType, MaxTimeSeriesColumns, allMetricIds.Count);
+                    metrics = [.. metrics.Where(m => topMetricIds.Contains(m.MetricId))];
+                }
 
                 // Get time series data for this metric
                 var metricIds = metrics.Select(m => m.MetricId).ToHashSet();
@@ -815,7 +994,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                     ws.Cell(row, 1).Value = "No time series data available";
                     ws.SheetView.FreezeRows(4);
                     ws.SheetView.FreezeColumns(1);
-                    Log.Warning("No time series data found for metric '{MetricName}' in '{ComponentType}'", metricName, componentType);
+                    Log.Debug("No time series data found for metric '{MetricName}' in '{ComponentType}'", metricName, componentType);
                     return;
                 }
 
@@ -828,7 +1007,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
 
                 if(uniqueTimeSeriesData.Count != timeSeriesData.Count)
                 {
-                    Log.Warning("Removed {Count} duplicate time series data point(s) for metric '{MetricName}' in '{ComponentType}'. Original: {Original}, Unique: {Unique}",
+                    Log.Debug("Removed {Count} duplicate time series data point(s) for metric '{MetricName}' in '{ComponentType}'. Original: {Original}, Unique: {Unique}",
                         timeSeriesData.Count - uniqueTimeSeriesData.Count, metricName, componentType, timeSeriesData.Count, uniqueTimeSeriesData.Count);
                     timeSeriesData = uniqueTimeSeriesData;
                 }
@@ -846,7 +1025,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
 
                 if(uniqueMetrics.Count != metrics.Count)
                 {
-                    Log.Warning("Removed {Count} duplicate metric(s) in time series for '{MetricName}' in '{ComponentType}'. Original: {Original}, Unique: {Unique}",
+                    Log.Debug("Removed {Count} duplicate metric(s) in time series for '{MetricName}' in '{ComponentType}'. Original: {Original}, Unique: {Unique}",
                         metrics.Count - uniqueMetrics.Count, metricName, componentType, metrics.Count, uniqueMetrics.Count);
                 }
 
@@ -867,7 +1046,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                     if(isGroupedMetric)
                     {
                         // For grouped/consolidated metrics, use: ComponentName - MetricName
-                        baseName = $"{component.ComponentName ?? $"Component_{component.ComponentId}"} - {component.MetricName ?? "Unknown"}";
+                        baseName = $"{component.ComponentName ?? $"Component_{component.ComponentId}"} - {component.MetricName ?? UnknownValue}";
                     }
                     else
                     {
@@ -880,7 +1059,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                         columnNames[baseName] = ++value;
                         var uniqueName = $"{baseName}_{value}";
                         finalComponentColumns.Add((component, uniqueName));
-                        Log.Warning("Duplicate component name '{ComponentName}' in time series for metric '{MetricName}', renamed to '{UniqueName}' in sheet '{SheetName}'",
+                        Log.Debug("Duplicate component name '{ComponentName}' in time series for metric '{MetricName}', renamed to '{UniqueName}' in sheet '{SheetName}'",
                             baseName, metricName, uniqueName, ws.Name);
                     }
                     else
@@ -891,8 +1070,8 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 }
 
                 // Detect if this is a consolidated metric sheet (multiple unique metric names)
-                var uniqueMetricNames = uniqueMetrics
-                    .Select(m => m.MetricName ?? "Unknown")
+                var uniqueMetricNames = components
+                    .Select(m => m.MetricName ?? UnknownValue)
                     .Distinct()
                     .Count();
                 var isConsolidatedMetric = uniqueMetricNames > 1;
@@ -973,7 +1152,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 foreach(var timestamp in timestamps)
                 {
                     ws.Cell(currentRow, 1).Value = timestamp.UtcDateTime;
-                    ws.Cell(currentRow, 1).Style.DateFormat.Format = "yyyy-mm-dd hh:mm";
+                    ws.Cell(currentRow, 1).Style.DateFormat.Format = "yyyy-mm-dd hh:mm:ss";
 
                     col = 2;
                     foreach(var (originalIndex, component, _) in columnsToInclude)
@@ -1093,9 +1272,14 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         }
 
         /// <summary>
-        /// Writes the components summary table with only non-empty columns.
+        /// Writes the components summary table with only non-empty columns and type-specific fields when available.
         /// </summary>
-        private static int WriteComponentsSummaryTable(IXLWorksheet ws, int startRow, List<ComponentReportRow> components)
+        private static int WriteComponentsSummaryTable(
+            IXLWorksheet ws, 
+            int startRow, 
+            List<ComponentReportRow> components, 
+            MonitorExcelReport report,
+            List<string>? typeSpecificFields = null)
         {
             if(components.Count == 0)
             {
@@ -1114,7 +1298,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
 
                 if(uniqueComponents.Count != components.Count)
                 {
-                    Log.Warning("Removed {Count} duplicate component(s) in sheet '{SheetName}'. Original: {Original}, Unique: {Unique}",
+                    Log.Debug("Removed {Count} duplicate component(s) in sheet '{SheetName}'. Original: {Original}, Unique: {Unique}",
                         components.Count - uniqueComponents.Count, ws.Name, components.Count, uniqueComponents.Count);
                 }
 
@@ -1124,10 +1308,44 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 Log.Debug("Found {Count} properties in ComponentReportRow: {Properties}",
                     properties.Length, string.Join(", ", properties.Select(p => p.Name)));
 
+                // Filter properties to include only type-specific fields if provided
+                var propertiesToUse = properties;
+                if(typeSpecificFields != null && typeSpecificFields.Count > 0)
+                {
+                    // Map API field names (snake_case) to C# property names (PascalCase)
+                    var apiFieldsAsProperties = MapApiFieldsToProperties(typeSpecificFields);
+                    var matchedProperties = properties.Where(p =>
+                        apiFieldsAsProperties.Contains(p.Name)).ToArray();
+
+                    if(matchedProperties.Length > 0)
+                    {
+                        Log.Information("Component type '{Type}' restricts fields to {Count} type-specific properties: {Properties}",
+                            uniqueComponents.FirstOrDefault()?.Type ?? "Unknown",
+                            matchedProperties.Length,
+                            string.Join(", ", matchedProperties.Select(p => p.Name)));
+
+                        Log.Debug("API field names for component type: {Fields}",
+                            string.Join(", ", typeSpecificFields));
+
+                        propertiesToUse = matchedProperties;
+                    }
+                    else
+                    {
+                        Log.Debug("No properties matched component type fields. Using all non-empty properties.");
+                    }
+                }
+
                 // Filter properties that have at least one non-null, non-empty value
-                var nonEmptyProperties = properties
+                // Exclude CollectionName and SystemId from component summary sheets
+                var nonEmptyProperties = propertiesToUse
                     .Where(p => uniqueComponents.Any(c =>
                     {
+                        // Skip excluded columns
+                        if(p.Name is "CollectionName" or "SystemId")
+                        {
+                            return false;
+                        }
+
                         var value = p.GetValue(c);
                         return value != null &&
                                !(value is string str && string.IsNullOrWhiteSpace(str)) &&
@@ -1138,6 +1356,9 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 Log.Debug("Filtered to {Count} non-empty properties: {Properties}",
                     nonEmptyProperties.Count, string.Join(", ", nonEmptyProperties.Select(p => p.Name)));
 
+                // Build alias mapping from ResourceFields
+                var aliasMapping = BuildPropertyAliasMapping(report.ResourceFields);
+
                 // Create unique column names (in case of duplicates)
                 var columnNames = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var finalColumnNames = new List<(PropertyInfo Property, string ColumnName)>();
@@ -1146,25 +1367,28 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 {
                     var baseName = prop.Name;
 
-                    if(columnNames.TryGetValue(baseName, out var value))
+                    // Get alias from mapping, or use property name as fallback
+                    var displayName = aliasMapping.TryGetValue(baseName, out var alias) ? alias : baseName;
+
+                    if(columnNames.TryGetValue(displayName, out var value))
                     {
-                        columnNames[baseName] = ++value;
-                        var uniqueName = $"{baseName}_{value}";
+                        columnNames[displayName] = ++value;
+                        var uniqueName = $"{displayName}_{value}";
                         finalColumnNames.Add((prop, uniqueName));
-                        Log.Warning("Duplicate column name detected: '{ColumnName}', renamed to '{UniqueName}' in sheet '{SheetName}'",
-                            baseName, uniqueName, ws.Name);
+                        Log.Debug("Duplicate column name detected: '{ColumnName}', renamed to '{UniqueName}' in sheet '{SheetName}'",
+                            displayName, uniqueName, ws.Name);
                     }
                     else
                     {
-                        columnNames[baseName] = 0;
-                        finalColumnNames.Add((prop, baseName));
+                        columnNames[displayName] = 0;
+                        finalColumnNames.Add((prop, displayName));
                     }
                 }
 
                 if(finalColumnNames.Count == 0)
                 {
                     ws.Cell(startRow, 1).Value = "No displayable columns found";
-                    Log.Warning("No displayable columns found for components in sheet '{SheetName}'", ws.Name);
+                    Log.Debug("No displayable columns found for components in sheet '{SheetName}'", ws.Name);
                     return startRow + 1;
                 }
 
@@ -1195,7 +1419,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                         }
                         catch(Exception ex)
                         {
-                            Log.Warning(ex, "Failed to get value for property '{Property}' on component '{Component}'",
+                            Log.Debug(ex, "Failed to get value for property '{Property}' on component '{Component}'",
                                 property.Name, component.Name ?? component.ComponentId.ToString());
                             ws.Cell(currentRow, col).Value = "#ERROR#";
                         }
@@ -1238,10 +1462,272 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         }
 
         /// <summary>
+        /// Writes the "Agents, Labels & Metrics" sheet with consolidated information about agents, labels, and metrics.
+        /// </summary>
+        private static void WriteAgentsLabelsMetricsSheet(XLWorkbook workbook, SheetRegistry sheetRegistry, MonitorExcelReport report)
+        {
+            var ws = workbook.Worksheets.Add(sheetRegistry.GetOrCreatePhysicalName("Agents & Labels"));
+            sheetRegistry.Register("Agents & Labels", ws.Name);
+            WriteBackToIndex(ws);
+
+            var currentRow = 3;
+
+            // ==================== AGENTS SECTION ====================
+            ws.Cell(currentRow, 1).Value = "Agents";
+            ws.Cell(currentRow, 1).Style.Font.Bold = true;
+            ws.Cell(currentRow, 1).Style.Font.FontSize = 14;
+            currentRow += 2;
+
+            if(report.Agents.Count == 0)
+            {
+                ws.Cell(currentRow, 1).Value = "No agents found.";
+                currentRow += 2;
+            }
+            else
+            {
+                var agentHeaderRow = currentRow;
+                string[] agentHeaders =
+                [
+                    "Id", "Created At", "Name", "Description", "Version",
+                    "Address", "Platform", "Connected", "Through Connection Id"
+                ];
+
+                for(var col = 0; col < agentHeaders.Length; col++)
+                {
+                    var cell = ws.Cell(agentHeaderRow, col + 1);
+                    cell.Value = agentHeaders[col];
+                    cell.Style.Font.Bold = true;
+                    cell.Style.Fill.BackgroundColor = XLColor.LightGray;
+                }
+
+                currentRow = agentHeaderRow + 1;
+                foreach(var agent in report.Agents)
+                {
+                    ws.Cell(currentRow, 1).Value = agent.Id;
+                    SetCellValue(ws.Cell(currentRow, 2), agent.CreatedAt);
+                    ws.Cell(currentRow, 3).Value = agent.Name ?? string.Empty;
+                    ws.Cell(currentRow, 4).Value = agent.Description ?? string.Empty;
+                    ws.Cell(currentRow, 5).Value = agent.Version ?? string.Empty;
+                    ws.Cell(currentRow, 6).Value = agent.Address ?? string.Empty;
+                    ws.Cell(currentRow, 7).Value = agent.Platform ?? string.Empty;
+                    ws.Cell(currentRow, 8).Value = agent.IsConnected?.ToString() ?? string.Empty;
+                    SetCellValue(ws.Cell(currentRow, 9), agent.ThroughConnectionId);
+                    currentRow++;
+                }
+
+                var agentRange = ws.Range(agentHeaderRow, 1, Math.Max(currentRow - 1, agentHeaderRow), agentHeaders.Length);
+                agentRange.CreateTable();
+                currentRow += 2;
+            }
+
+            // ==================== LABELS SECTION ====================
+            ws.Cell(currentRow, 1).Value = "Labels";
+            ws.Cell(currentRow, 1).Style.Font.Bold = true;
+            ws.Cell(currentRow, 1).Style.Font.FontSize = 14;
+            currentRow += 2;
+
+            if(report.Labels.Count == 0)
+            {
+                ws.Cell(currentRow, 1).Value = "No labels found.";
+                currentRow += 2;
+            }
+            else
+            {
+                var labelHeaderRow = currentRow;
+                string[] labelHeaders = ["Id", "Created At", "Name", "Description", "Color"];
+
+                for(var col = 0; col < labelHeaders.Length; col++)
+                {
+                    var cell = ws.Cell(labelHeaderRow, col + 1);
+                    cell.Value = labelHeaders[col];
+                    cell.Style.Font.Bold = true;
+                    cell.Style.Fill.BackgroundColor = XLColor.LightGray;
+                }
+
+                currentRow = labelHeaderRow + 1;
+                foreach(var label in report.Labels)
+                {
+                    ws.Cell(currentRow, 1).Value = label.Id;
+                    SetCellValue(ws.Cell(currentRow, 2), label.CreatedAt);
+                    ws.Cell(currentRow, 3).Value = label.Name ?? string.Empty;
+                    ws.Cell(currentRow, 4).Value = label.Description ?? string.Empty;
+                    ws.Cell(currentRow, 5).Value = label.Color ?? string.Empty;
+
+                    // Apply color to the color cell if available
+                    if(!string.IsNullOrEmpty(label.Color))
+                    {
+                        try
+                        {
+                            var colorCell = ws.Cell(currentRow, 5);
+                            // Try to parse hex color
+                            if(label.Color.StartsWith('#') && label.Color.Length == 7)
+                            {
+                                colorCell.Style.Fill.BackgroundColor = XLColor.FromHtml(label.Color);
+                                colorCell.Style.Font.FontColor = XLColor.White;
+                            }
+                        }
+                        catch
+                        {
+                            // If color parsing fails, just display the color code as text
+                        }
+                    }
+
+                    currentRow++;
+                }
+
+                var labelRange = ws.Range(labelHeaderRow, 1, Math.Max(currentRow - 1, labelHeaderRow), labelHeaders.Length);
+                labelRange.CreateTable();
+                currentRow += 2;
+            }
+
+            // ==================== METRICS SECTION ====================
+            ws.Cell(currentRow, 1).Value = "Metrics";
+            ws.Cell(currentRow, 1).Style.Font.Bold = true;
+            ws.Cell(currentRow, 1).Style.Font.FontSize = 14;
+            currentRow += 2;
+
+            if(report.Metrics.Count == 0)
+            {
+                ws.Cell(currentRow, 1).Value = "No metrics found.";
+            }
+            else
+            {
+                var metricHeaderRow = currentRow;
+                string[] metricHeaders =
+                [
+                    "Collection", "Component Id", "Component Name", "Component Type", "Component Subtype",
+                    "Metric Id", "Metric Name", "RId", "Unit", "Status", "Alerting Enabled", "Aggregation"
+                ];
+
+                for(var col = 0; col < metricHeaders.Length; col++)
+                {
+                    var cell = ws.Cell(metricHeaderRow, col + 1);
+                    cell.Value = metricHeaders[col];
+                    cell.Style.Font.Bold = true;
+                    cell.Style.Fill.BackgroundColor = XLColor.LightGray;
+                }
+
+                currentRow = metricHeaderRow + 1;
+                foreach(var metric in report.Metrics)
+                {
+                    ws.Cell(currentRow, 1).Value = metric.CollectionName;
+                    SetCellValue(ws.Cell(currentRow, 2), metric.ComponentId);
+                    ws.Cell(currentRow, 3).Value = metric.ComponentName ?? string.Empty;
+                    ws.Cell(currentRow, 4).Value = metric.ComponentType ?? string.Empty;
+                    ws.Cell(currentRow, 5).Value = metric.ComponentSubtype ?? string.Empty;
+                    SetCellValue(ws.Cell(currentRow, 6), metric.MetricId);
+                    ws.Cell(currentRow, 7).Value = metric.MetricName ?? string.Empty;
+                    ws.Cell(currentRow, 8).Value = metric.RId ?? string.Empty;
+                    ws.Cell(currentRow, 9).Value = metric.Unit ?? string.Empty;
+                    SetCellValue(ws.Cell(currentRow, 10), metric.Status);
+                    ws.Cell(currentRow, 11).Value = metric.IsAlertingEnabled?.ToString() ?? string.Empty;
+                    ws.Cell(currentRow, 12).Value = metric.Aggregation ?? string.Empty;
+                    currentRow++;
+                }
+
+                var metricRange = ws.Range(metricHeaderRow, 1, Math.Max(currentRow - 1, metricHeaderRow), metricHeaders.Length);
+                metricRange.CreateTable();
+            }
+
+            ws.Columns().AdjustToContents();
+            ws.SheetView.FreezeRows(3);
+        }
+
+        /// <summary>
+        /// Writes the Agents sheet with all agent attributes extracted from API metadata.
+        /// Uses dynamic reflection and aliases to display all available agent fields.
+        /// </summary>
+        private static void WriteAgentsSheet(
+            XLWorkbook workbook,
+            SheetRegistry sheetRegistry,
+            List<AgentReportRow> agents,
+            MonitorExcelReport report)
+        {
+            var ws = workbook.Worksheets.Add(sheetRegistry.GetOrCreatePhysicalName("Agents"));
+            WriteBackToIndex(ws);
+
+            if(agents.Count == 0)
+            {
+                ws.Cell(3, 1).Value = "No agents found.";
+                return;
+            }
+
+            const int headerRow = 3;
+
+            // Get all properties from AgentReportRow
+            var properties = typeof(AgentReportRow).GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+
+            Log.Debug("Found {Count} properties in AgentReportRow: {Properties}",
+                properties.Length, string.Join(", ", properties.Select(p => p.Name)));
+
+            // Filter to include only properties with at least one non-null, non-empty value
+            var nonEmptyProperties = properties
+                .Where(p => agents.Any(a =>
+                {
+                    var value = p.GetValue(a);
+                    return value != null &&
+                           !(value is string str && string.IsNullOrWhiteSpace(str)) &&
+                           !(value is int intVal && intVal == 0 && p.Name.EndsWith("Count")) &&
+                           !(value is bool boolVal && !boolVal && p.Name.StartsWith("Is"));
+                }))
+                .ToList();
+
+            Log.Debug("Filtered to {Count} non-empty properties: {Properties}",
+                nonEmptyProperties.Count, string.Join(", ", nonEmptyProperties.Select(p => p.Name)));
+
+            // Build alias mapping from ResourceFields
+            var aliasMapping = BuildPropertyAliasMapping(report.ResourceFields);
+
+            // Create display names for headers
+            var finalHeaders = new List<(PropertyInfo Property, string DisplayName)>();
+            foreach(var prop in nonEmptyProperties)
+            {
+                var displayName = aliasMapping.TryGetValue(prop.Name, out var alias) ? alias : prop.Name;
+                finalHeaders.Add((prop, displayName));
+            }
+
+            // Write headers
+            for(var col = 0; col < finalHeaders.Count; col++)
+            {
+                var cell = ws.Cell(headerRow, col + 1);
+                cell.Value = finalHeaders[col].DisplayName;
+                cell.Style.Font.Bold = true;
+                cell.Style.Fill.BackgroundColor = XLColor.LightGray;
+            }
+
+            // Write data rows
+            var row = headerRow + 1;
+            foreach(var agent in agents)
+            {
+                var col = 1;
+
+                foreach(var (property, _) in finalHeaders)
+                {
+                    var cell = ws.Cell(row, col);
+                    var value = property.GetValue(agent);
+                    SetCellValue(cell, value);
+                    col++;
+                }
+
+                row++;
+            }
+
+            var usedRange = ws.Range(headerRow, 1, Math.Max(row - 1, headerRow), finalHeaders.Count);
+            usedRange.CreateTable();
+            ws.Columns().AdjustToContents();
+            ws.SheetView.FreezeRows(headerRow);
+            ws.SheetView.FreezeColumns(1);
+        }
+
+        /// <summary>
         /// Writes the Alerts sheet with severity labels and color coding.
         /// Replaces the numeric Status code (1=info, 2=warning, 3=critical) with a labeled, colored cell.
         /// </summary>
-        private static void WriteAlertsSheet(XLWorkbook workbook, SheetRegistry sheetRegistry, List<AlertReportRow> alerts)
+        private static void WriteAlertsSheet(
+            XLWorkbook workbook, 
+            SheetRegistry sheetRegistry, 
+            List<AlertReportRow> alerts,
+            MonitorExcelReport report)
         {
             var ws = workbook.Worksheets.Add(sheetRegistry.GetOrCreatePhysicalName("Alerts"));
             WriteBackToIndex(ws);
@@ -1253,62 +1739,93 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
             }
 
             // Deduplicate by AlertId
-            var rows = alerts
+            var uniqueAlerts = alerts
                 .GroupBy(a => a.AlertId)
                 .Select(g => g.First())
                 .ToList();
 
             const int headerRow = 3;
 
-            string[] headers =
-            [
-                "Collection", "AlertId", "MetricId", "MetricName",
-                "ComponentId", "ComponentName", "State", "Severity",
-                "OpenedAt", "ClosedAt", "Operator",
-                "InfoThreshold", "WarningThreshold", "CriticalThreshold", "Duration"
-            ];
+            // Get all properties from AlertReportRow
+            var properties = typeof(AlertReportRow).GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 
-            for(var col = 0; col < headers.Length; col++)
+            Log.Debug("Found {Count} properties in AlertReportRow: {Properties}",
+                properties.Length, string.Join(", ", properties.Select(p => p.Name)));
+
+            // Filter to include only properties with at least one non-null, non-empty value
+            // and exclude CollectionName
+            var nonEmptyProperties = properties
+                .Where(p => uniqueAlerts.Any(a =>
+                {
+                    // Skip excluded columns
+                    if(p.Name == "CollectionName")
+                    {
+                        return false;
+                    }
+
+                    var value = p.GetValue(a);
+                    return value != null &&
+                           !(value is string str && string.IsNullOrWhiteSpace(str)) &&
+                           !(value is int intVal && intVal == 0 && p.Name.EndsWith("Count"));
+                }))
+                .ToList();
+
+            Log.Debug("Filtered to {Count} non-empty properties: {Properties}",
+                nonEmptyProperties.Count, string.Join(", ", nonEmptyProperties.Select(p => p.Name)));
+
+            // Build alias mapping from ResourceFields
+            var aliasMapping = BuildPropertyAliasMapping(report.ResourceFields);
+
+            // Create display names for headers
+            var finalHeaders = new List<(PropertyInfo Property, string DisplayName)>();
+            foreach(var prop in nonEmptyProperties)
+            {
+                var displayName = aliasMapping.TryGetValue(prop.Name, out var alias) ? alias : prop.Name;
+                finalHeaders.Add((prop, displayName));
+            }
+
+            // Write headers
+            for(var col = 0; col < finalHeaders.Count; col++)
             {
                 var cell = ws.Cell(headerRow, col + 1);
-                cell.Value = headers[col];
+                cell.Value = finalHeaders[col].DisplayName;
                 cell.Style.Font.Bold = true;
                 cell.Style.Fill.BackgroundColor = XLColor.LightGray;
             }
 
+            // Write data rows
             var row = headerRow + 1;
-            foreach(var alert in rows)
+            foreach(var alert in uniqueAlerts)
             {
                 var severity = ResolveSeverity(alert);
+                var col = 1;
 
-                ws.Cell(row, 1).Value = alert.CollectionName;
-                ws.Cell(row, 2).Value = alert.AlertId;
-                SetCellValue(ws.Cell(row, 3), alert.MetricId);
-                ws.Cell(row, 4).Value = alert.MetricName ?? string.Empty;
-                SetCellValue(ws.Cell(row, 5), alert.ComponentId);
-                ws.Cell(row, 6).Value = alert.ComponentName ?? string.Empty;
-                ws.Cell(row, 7).Value = alert.State ?? string.Empty;
-
-                // Severity column: label with color instead of raw Status int
-                var severityCell = ws.Cell(row, 8);
-                severityCell.Value = severity ?? string.Empty;
-                if(severity != null)
+                foreach(var (property, _) in finalHeaders)
                 {
-                    ApplySeverityColor(severityCell, severity);
-                }
+                    var cell = ws.Cell(row, col);
 
-                SetCellValue(ws.Cell(row, 9), alert.OpenedAt);
-                SetCellValue(ws.Cell(row, 10), alert.ClosedAt);
-                ws.Cell(row, 11).Value = alert.Operator ?? string.Empty;
-                SetCellValue(ws.Cell(row, 12), alert.InfoThreshold);
-                SetCellValue(ws.Cell(row, 13), alert.WarningThreshold);
-                SetCellValue(ws.Cell(row, 14), alert.CriticalThreshold);
-                SetCellValue(ws.Cell(row, 15), alert.Duration);
+                    // Special handling for Status -> Severity conversion
+                    if(property.Name == "Status")
+                    {
+                        cell.Value = severity ?? string.Empty;
+                        if(severity != null)
+                        {
+                            ApplySeverityColor(cell, severity);
+                        }
+                    }
+                    else
+                    {
+                        var value = property.GetValue(alert);
+                        SetCellValue(cell, value);
+                    }
+
+                    col++;
+                }
 
                 row++;
             }
 
-            var usedRange = ws.Range(headerRow, 1, Math.Max(row - 1, headerRow), headers.Length);
+            var usedRange = ws.Range(headerRow, 1, Math.Max(row - 1, headerRow), finalHeaders.Count);
             usedRange.CreateTable();
             ws.Columns().AdjustToContents();
             ws.SheetView.FreezeRows(headerRow);
@@ -1360,185 +1877,6 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
 
             cell.Style.Font.FontColor = color;
             cell.Style.Font.Bold = true;
-        }
-
-        /// <summary>
-        /// Writes a generic sheet with a typed data table.
-        /// </summary>
-        /// <typeparam name="T">The type of objects in the collection (must have public properties).</typeparam>
-        /// <param name="workbook">The Excel workbook where the sheet will be added.</param>
-        /// <param name="sheetRegistry">Sheet name registry to avoid duplicates.</param>
-        /// <param name="logicalName">Logical sheet name (will be sanitized and truncated as needed).</param>
-        /// <param name="rows">Collection of objects to write as table rows.</param>
-        /// <remarks>
-        /// Uses reflection to get public properties of type T and create columns automatically.
-        /// The table is created at row 3 with bold headers and Excel table formatting.
-        /// Automatically deduplicates rows based on unique key properties (Id, AlertId, etc.).
-        /// </remarks>
-        private static void WriteTableSheet<T>(XLWorkbook workbook, SheetRegistry sheetRegistry, string logicalName, IReadOnlyCollection<T> rows)
-        {
-            var ws = workbook.Worksheets.Add(sheetRegistry.GetOrCreatePhysicalName(logicalName));
-            WriteBackToIndex(ws);
-
-            // Deduplicate rows based on available unique key properties
-            var uniqueRows = DeduplicateRows(rows, logicalName);
-            WriteRows(ws, 3, uniqueRows);
-            ws.SheetView.FreezeColumns(1);
-        }
-
-        /// <summary>
-        /// Deduplicates a collection of rows based on available unique key properties.
-        /// </summary>
-        /// <typeparam name="T">The type of objects in the collection.</typeparam>
-        /// <param name="rows">Collection of objects to deduplicate.</param>
-        /// <param name="contextName">Context name for logging (e.g., sheet name).</param>
-        /// <returns>Deduplicated collection of rows.</returns>
-        private static IReadOnlyCollection<T> DeduplicateRows<T>(IReadOnlyCollection<T> rows, string contextName)
-        {
-            if(rows.Count == 0)
-            {
-                return rows;
-            }
-
-            var type = typeof(T);
-            var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-
-            // Find the first available unique key property
-            var keyProperty = properties.FirstOrDefault(p =>
-                p.Name.Equals("Id", StringComparison.OrdinalIgnoreCase) ||
-                p.Name.Equals($"{type.Name}Id", StringComparison.OrdinalIgnoreCase) ||
-                p.Name.Equals("AlertId", StringComparison.OrdinalIgnoreCase) ||
-                p.Name.Equals("MetricId", StringComparison.OrdinalIgnoreCase) ||
-                p.Name.Equals("ComponentId", StringComparison.OrdinalIgnoreCase));
-
-            if(keyProperty == null)
-            {
-                // No unique key found, return all rows with a warning
-                Log.Debug("No unique key property found for type '{TypeName}' in '{ContextName}'. Skipping deduplication.",
-                    type.Name, contextName);
-                return rows;
-            }
-
-            // Deduplicate by the key property
-            var uniqueRows = rows
-                .GroupBy(r => keyProperty.GetValue(r))
-                .Select(g => g.First())
-                .ToList();
-
-            if(uniqueRows.Count != rows.Count)
-            {
-                Log.Warning("Removed {Count} duplicate row(s) in '{ContextName}' based on property '{KeyProperty}'. Original: {Original}, Unique: {Unique}",
-                    rows.Count - uniqueRows.Count, contextName, keyProperty.Name, rows.Count, uniqueRows.Count);
-            }
-
-            return uniqueRows;
-        }
-
-        /// <summary>
-        /// Writes generic data rows to a sheet, using reflection to get columns.
-        /// </summary>
-        /// <typeparam name="T">The type of objects (must have public instance properties).</typeparam>
-        /// <param name="ws">The sheet where data will be written.</param>
-        /// <param name="startRow">The row where to start writing (1-based).</param>
-        /// <param name="rows">Collection of objects to write.</param>
-        /// <remarks>
-        /// <para>
-        /// This method:
-        /// <list type="number">
-        /// <item><description>Gets public properties of type T using reflection</description></item>
-        /// <item><description>Writes headers at <paramref name="startRow"/> with bold format</description></item>
-        /// <item><description>Writes each object as a row, using <see cref="SetCellValue"/> for appropriate formatting</description></item>
-        /// <item><description>Creates an Excel table over the used range</description></item>
-        /// <item><description>Adjusts column widths to content</description></item>
-        /// <item><description>Freezes the header row</description></item>
-        /// </list>
-        /// </para>
-        /// </remarks>
-        private static void WriteRows<T>(IXLWorksheet ws, int startRow, IReadOnlyCollection<T> rows)
-        {
-            var properties = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance);
-
-            if(properties.Length == 0)
-            {
-                ws.Cell(startRow, 1).Value = "No columns.";
-                return;
-            }
-
-            var headerRow = startRow;
-            for(var col = 0; col < properties.Length; col++)
-            {
-                ws.Cell(headerRow, col + 1).Value = properties[col].Name;
-                ws.Cell(headerRow, col + 1).Style.Font.Bold = true;
-            }
-
-            var row = headerRow + 1;
-            foreach(var item in rows)
-            {
-                for(var col = 0; col < properties.Length; col++)
-                {
-                    var value = properties[col].GetValue(item);
-                    SetCellValue(ws.Cell(row, col + 1), value);
-                }
-                row++;
-            }
-
-            var usedRange = ws.Range(headerRow, 1, Math.Max(row - 1, headerRow), properties.Length);
-            usedRange.CreateTable();
-            ws.Columns().AdjustToContents();
-            ws.SheetView.FreezeRows(headerRow);
-        }
-
-        /// <summary>
-        /// Writes a "Back to index" hyperlink in cell A1 of a sheet.
-        /// </summary>
-        /// <param name="ws">The sheet where the link will be written.</param>
-        /// <remarks>
-        /// Creates a clickable link to cell A1 of the "Summary" sheet for easy navigation.
-        /// </remarks>
-        private static void WriteBackToIndex(IXLWorksheet ws)
-        {
-            ws.Cell(1, 1).FormulaA1 = HyperlinkFormula("Summary", "Back to index");
-            ws.Cell(1, 1).Style.Font.Bold = true;
-        }
-
-        /// <summary>
-        /// Writes a hyperlink to another sheet with a label and description.
-        /// </summary>
-        /// <param name="ws">The sheet where the link will be written.</param>
-        /// <param name="row">The row where to write (1-based).</param>
-        /// <param name="targetSheet">Physical name of the target sheet.</param>
-        /// <param name="label">Text to display in the hyperlink.</param>
-        /// <param name="description">Description to display in column B.</param>
-        /// <remarks>
-        /// Creates a hyperlink in column A and puts the description in column B of the same row.
-        /// </remarks>
-        private static void WriteIndexLink(IXLWorksheet ws, int row, string targetSheet, string label, string description)
-        {
-            ws.Cell(row, 1).FormulaA1 = HyperlinkFormula(targetSheet, label);
-            ws.Cell(row, 2).Value = description;
-        }
-
-        /// <summary>
-        /// Creates an Excel HYPERLINK formula to navigate to another sheet.
-        /// </summary>
-        /// <param name="sheetName">Target sheet name (will be escaped appropriately).</param>
-        /// <param name="text">Text to display in the link (will be escaped appropriately).</param>
-        /// <returns>A string with the HYPERLINK formula ready to use in Excel.</returns>
-        /// <remarks>
-        /// Escapes single quotes in sheet name and double quotes in text according to Excel rules.
-        /// The link always points to cell A1 of the target sheet.
-        /// </remarks>
-        /// <example>
-        /// <code>
-        /// var formula = HyperlinkFormula("Summary", "Go to summary");
-        /// // Returns: HYPERLINK("#'Summary'!A1","Go to summary")
-        /// </code>
-        /// </example>
-        private static string HyperlinkFormula(string sheetName, string text)
-        {
-            var escapedSheet = sheetName.Replace("'", "''");
-            var escapedText = text.Replace("\"", "\"\"");
-            return $"HYPERLINK(\"#'{escapedSheet}'!A1\",\"{escapedText}\")";
         }
 
         /// <summary>
@@ -1644,13 +1982,13 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                     }
                     catch(Exception ex)
                     {
-                        Log.Warning(ex, "Failed to check worksheet '{SheetName}' for duplicate columns", worksheet.Name);
+                        Log.Debug(ex, "Failed to check worksheet '{SheetName}' for duplicate columns", worksheet.Name);
                     }
                 }
             }
             catch(Exception ex)
             {
-                Log.Warning(ex, "Failed to log duplicate columns information");
+                Log.Debug(ex, "Failed to log duplicate columns information");
             }
         }
 
@@ -1739,6 +2077,27 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 .Select(g => (Name: g.Key, Count: g.Count()))];
 
         /// <summary>
+        /// Formats a bucket label for human-readable display in Excel titles and descriptions.
+        /// </summary>
+        /// <param name="bucket">The bucket interval (e.g., "15m", "hour", "day", "5m").</param>
+        /// <returns>A formatted string for display (e.g., "15 minutes", "1 hour", "1 day", "5 minutes").</returns>
+        /// <example>
+        /// FormatBucketLabel("15m") returns "15 minutes"
+        /// FormatBucketLabel("hour") returns "1 hour"
+        /// FormatBucketLabel("day") returns "1 day"
+        /// </example>
+        private static string FormatBucketLabel(string bucket) => string.IsNullOrWhiteSpace(bucket)
+                ? "15 minutes"
+                : bucket switch
+                {
+                    "5m" => "5 minutes",
+                    "15m" => "15 minutes",
+                    "hour" => "1 hour",
+                    "day" => "1 day",
+                    _ => bucket
+                };
+
+        /// <summary>
         /// Sheet name registry to manage duplicates and name truncation.
         /// </summary>
         /// <remarks>
@@ -1757,6 +2116,125 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// </list>
         /// </para>
         /// </remarks>
+        /// <remarks>
+        /// Initializes a new instance of the sheet registry.
+        /// </remarks>
+        /// <param name="workbook">The Excel workbook to verify existing names.</param>
+
+        /// <summary>
+        /// Writes the Labels sheet with all label data.
+        /// </summary>
+        private static void WriteLabelsSheet(
+            XLWorkbook workbook,
+            SheetRegistry sheetRegistry,
+            List<LabelReportRow> labels,
+            MonitorExcelReport report)
+        {
+            var ws = workbook.Worksheets.Add(sheetRegistry.GetOrCreatePhysicalName("Labels"));
+            WriteBackToIndex(ws);
+
+            if(labels.Count == 0)
+            {
+                ws.Cell(3, 1).Value = "No labels found.";
+                return;
+            }
+
+            const int headerRow = 3;
+
+            // Get all properties from LabelReportRow
+            var properties = typeof(LabelReportRow).GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+
+            Log.Debug("Found {Count} properties in LabelReportRow: {Properties}",
+                properties.Length, string.Join(", ", properties.Select(p => p.Name)));
+
+            // Filter to include only properties with at least one non-null, non-empty value
+            var nonEmptyProperties = properties
+                .Where(p => labels.Any(l =>
+                {
+                    var value = p.GetValue(l);
+                    return value != null &&
+                           !(value is string str && string.IsNullOrWhiteSpace(str)) &&
+                           !(value is int intVal && intVal == 0 && p.Name.EndsWith("Count"));
+                }))
+                .ToList();
+
+            Log.Debug("Filtered to {Count} non-empty properties: {Properties}",
+                nonEmptyProperties.Count, string.Join(", ", nonEmptyProperties.Select(p => p.Name)));
+
+            // Build alias mapping from ResourceFields
+            var aliasMapping = BuildPropertyAliasMapping(report.ResourceFields);
+
+            // Create display names for headers
+            var finalHeaders = new List<(PropertyInfo Property, string DisplayName)>();
+            foreach(var prop in nonEmptyProperties)
+            {
+                var displayName = aliasMapping.TryGetValue(prop.Name, out var alias) ? alias : prop.Name;
+                finalHeaders.Add((prop, displayName));
+            }
+
+            // Write headers
+            for(var col = 0; col < finalHeaders.Count; col++)
+            {
+                var cell = ws.Cell(headerRow, col + 1);
+                cell.Value = finalHeaders[col].DisplayName;
+                cell.Style.Font.Bold = true;
+                cell.Style.Fill.BackgroundColor = XLColor.LightGray;
+            }
+
+            // Write data rows
+            var row = headerRow + 1;
+            foreach(var label in labels)
+            {
+                var col = 1;
+
+                foreach(var (property, _) in finalHeaders)
+                {
+                    var cell = ws.Cell(row, col);
+                    var value = property.GetValue(label);
+                    SetCellValue(cell, value);
+                    col++;
+                }
+
+                row++;
+            }
+
+            var usedRange = ws.Range(headerRow, 1, Math.Max(row - 1, headerRow), finalHeaders.Count);
+            usedRange.CreateTable();
+            ws.Columns().AdjustToContents();
+            ws.SheetView.FreezeRows(headerRow);
+            ws.SheetView.FreezeColumns(1);
+        }
+
+        /// <summary>
+        /// Writes a hyperlink cell that links to another sheet.
+        /// </summary>
+        /// <param name="ws">The worksheet to write to.</param>
+        /// <param name="row">The row number (1-based).</param>
+        /// <param name="sheetName">The physical name of the target sheet.</param>
+        /// <param name="label">The display text for the link.</param>
+        /// <param name="description">The description text displayed in the next column.</param>
+        private static void WriteIndexLink(IXLWorksheet ws, int row, string sheetName, string label, string description)
+        {
+            var cell = ws.Cell(row, 1);
+            cell.Value = label;
+            cell.SetHyperlink(new XLHyperlink($"'{sheetName}'!A1"));
+            cell.Style.Font.Underline = XLFontUnderlineValues.Single;
+
+            ws.Cell(row, 2).Value = description;
+        }
+
+        /// <summary>
+        /// Writes a "Back to Index" hyperlink at the top of a worksheet.
+        /// </summary>
+        /// <param name="ws">The worksheet to write to.</param>
+        private static void WriteBackToIndex(IXLWorksheet ws)
+        {
+            ws.Cell(1, 1).Value = "← Back to Index";
+            var cell = ws.Cell(1, 1);
+            cell.SetHyperlink(new XLHyperlink("'Summary'!A1"));
+            cell.Style.Font.Underline = XLFontUnderlineValues.Single;
+        }
+
         /// <remarks>
         /// Initializes a new instance of the sheet registry.
         /// </remarks>
@@ -1818,51 +2296,6 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 _logicalToPhysical[logicalName] = candidate;
                 _usedPhysicalNames.Add(candidate);
                 return candidate;
-            }
-
-            /// <summary>
-            /// Builds a sheet name for collections (format: COL_{collection}_{type}).
-            /// </summary>
-            /// <param name="collectionName">Collection name.</param>
-            /// <param name="componentType">Component type.</param>
-            /// <returns>Logical name for the collection sheet.</returns>
-            /// <remarks>
-            /// Legacy method kept for compatibility. No longer used in current structure.
-            /// </remarks>
-            public static string BuildCollectionSheetName(string collectionName, string componentType)
-                => $"COL_{collectionName}_{componentType}";
-
-            /// <summary>
-            /// Builds a sheet name for individual metrics (format: MET_{metric}).
-            /// </summary>
-            /// <param name="metricName">Metric name.</param>
-            /// <returns>Logical name for the metric sheet.</returns>
-            /// <remarks>
-            /// Legacy method kept for compatibility. No longer used in current structure.
-            /// </remarks>
-            public static string BuildMetricSheetName(string metricName)
-                => $"MET_{metricName}";
-
-            /// <summary>
-            /// Builds a sheet name for component-metric (format: {component}_{metric}).
-            /// </summary>
-            /// <param name="componentName">Component name.</param>
-            /// <param name="metricName">Metric name.</param>
-            /// <returns>Sanitized logical name for the sheet with underscores replacing spaces (not truncated).</returns>
-            /// <remarks>
-            /// <para>
-            /// Legacy method kept for compatibility. No longer used in current structure.
-            /// </para>
-            /// <para>
-            /// Spaces in component and metric names are replaced with underscores.
-            /// </para>
-            /// </remarks>
-            public static string BuildComponentMetricSheetName(string componentName, string metricName)
-            {
-                // Don't truncate here - let GetOrCreatePhysicalName handle truncation AND deduplication
-                var sanitizedComponent = SanitizeSheetNameStatic(componentName);
-                var sanitizedMetric = SanitizeSheetNameStatic(metricName);
-                return $"{sanitizedComponent}_{sanitizedMetric}";
             }
 
             /// <summary>
