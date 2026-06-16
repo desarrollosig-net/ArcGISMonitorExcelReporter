@@ -575,7 +575,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
 
             if(idList.Count == 0)
             {
-                Log.Warning("No metric IDs provided for time series query");
+                Log.Debug("No metric IDs provided for time series query");
                 return new QueryResponse<MetricFeature>
                 {
                     Features = [],
@@ -611,6 +611,318 @@ namespace ArcGISMonitorExcelReporterLib.Client
                 Features = allFeatures,
                 Count = allFeatures.Count
             };
+        }
+
+        /// <summary>
+        /// Retrieves monitoring information from the ArcGIS Monitor /monitoring endpoint.
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token for async operation.</param>
+        /// <returns>A MonitoringInfo object containing version and available resources.</returns>
+        /// <remarks>
+        /// This method queries the /monitoring endpoint to retrieve system information
+        /// about ArcGIS Monitor, including version details and available API resources.
+        /// Requires bearer token authentication.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var service = new ArcGisMonitorQueryService(client);
+        /// var info = await service.GetMonitoringInfoAsync();
+        /// Console.WriteLine($"ArcGIS Monitor Version: {info.Version}");
+        /// </code>
+        /// </example>
+        public async Task<MonitoringInfo?> GetMonitoringInfoAsync(CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                Log.Debug("Fetching monitoring information from /monitoring endpoint");
+                var info = await _client.GetAsync<MonitoringInfo>("monitoring", requiresBearer: true, cancellationToken).ConfigureAwait(false);
+
+                if(info != null && !string.IsNullOrEmpty(info.Version))
+                {
+                    Log.Debug("Successfully retrieved monitoring information. Version: {Version}, Resources: {ResourceCount}", 
+                        info.Version, info.Resources?.Count ?? 0);
+                }
+
+                return info;
+            }
+            catch(Exception ex)
+            {
+                Log.Debug(ex, "Error retrieving monitoring information from /monitoring endpoint");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Retrieves field information for a specific resource from the /monitoring/{resource} endpoint.
+        /// </summary>
+        /// <param name="resourceName">The name of the resource (e.g., "metrics", "alerts", "components").</param>
+        /// <param name="cancellationToken">Cancellation token for async operation.</param>
+        /// <returns>A ResourceFieldInfo object containing field definitions for the resource, or null if retrieval fails.</returns>
+        /// <remarks>
+        /// This method queries the /monitoring/{resource} endpoint to retrieve schema information
+        /// about a specific resource, including available fields and their definitions.
+        /// Requires bearer token authentication.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var service = new ArcGisMonitorQueryService(client);
+        /// var metricsFields = await service.GetResourceFieldsAsync("metrics");
+        /// Console.WriteLine($"Metrics resource has {metricsFields?.Fields?.Count ?? 0} fields");
+        /// </code>
+        /// </example>
+        public async Task<ResourceFieldInfo?> GetResourceFieldsAsync(
+            string resourceName,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(resourceName);
+
+            try
+            {
+                Log.Debug("Fetching field information for resource: {ResourceName}", resourceName);
+                var endpoint = $"monitoring/{resourceName}";
+                var fields = await _client.GetAsync<ResourceFieldInfo>(endpoint, requiresBearer: true, cancellationToken).ConfigureAwait(false);
+
+                if(fields != null && fields.Fields?.Count > 0)
+                {
+                    Log.Debug("Successfully retrieved field information for {ResourceName}. Fields: {FieldCount}", 
+                        resourceName, fields.Fields.Count);
+                }
+                else
+                {
+                    Log.Debug("No field information found for resource: {ResourceName}", resourceName);
+                }
+
+                return fields;
+            }
+            catch(Exception ex)
+            {
+                Log.Debug(ex, "Error retrieving field information for resource: {ResourceName}", resourceName);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Retrieves component types information from the /monitoring/components endpoint.
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token for async operation.</param>
+        /// <returns>Component types information containing available component types and their fields.</returns>
+        /// <remarks>
+        /// This endpoint provides metadata about component types (e.g., "host", "database", "service", "storage")
+        /// and the field names available for each type. This information is useful for displaying component-specific
+        /// fields in the report and validating component queries.
+        /// </remarks>
+        public async Task<ComponentTypesInfo?> GetComponentTypesAsync(CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var componentTypes = await _client.GetAsync<ComponentTypesInfo>("monitoring/components", requiresBearer: true, cancellationToken).ConfigureAwait(false);
+
+                if (componentTypes?.Types?.Count > 0)
+                {
+                    Log.Information("Retrieved {Count} component types: {Types}",
+                        componentTypes.Types.Count,
+                        string.Join(", ", componentTypes.Types.Select(t => t.Name)));
+                }
+                else
+                {
+                    Log.Debug("No component types found in monitoring/components endpoint");
+                }
+
+                return componentTypes;
+            }
+            catch(Exception ex)
+            {
+                Log.Debug(ex, "Error retrieving component types from /monitoring/components");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Retrieves field information for multiple resources in parallel.
+        /// </summary>
+        /// <param name="resourceNames">The collection of resource names to query.</param>
+        /// <param name="cancellationToken">Cancellation token for async operation.</param>
+        /// <returns>A dictionary mapping resource names to their field information.</returns>
+        /// <remarks>
+        /// This method efficiently retrieves field information for multiple resources by executing
+        /// requests in parallel. It gracefully handles partial failures - if a resource fails to
+        /// retrieve, that resource is simply omitted from the result.
+        /// </remarks>
+        public async Task<Dictionary<string, ResourceFieldInfo>> GetAllResourceFieldsAsync(
+            IEnumerable<string> resourceNames,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(resourceNames);
+
+            var tasks = resourceNames
+                .Select(resource => GetResourceFieldsAsync(resource, cancellationToken))
+                .ToList();
+
+            var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+
+            var fieldsDictionary = new Dictionary<string, ResourceFieldInfo>();
+            var resourceList = resourceNames.ToList();
+
+            for(var i = 0; i < resourceList.Count && i < results.Length; i++)
+            {
+                if(results[i] != null)
+                {
+                    fieldsDictionary[resourceList[i]] = results[i] ?? new ResourceFieldInfo();
+                }
+            }
+
+            Log.Debug("Retrieved field information for {SuccessCount} out of {TotalCount} resources",
+                fieldsDictionary.Count, resourceList.Count);
+
+            return fieldsDictionary;
+        }
+
+        /// <summary>
+        /// Retrieves all agents using automatic pagination.
+        /// </summary>
+        /// <param name="pageSize">Number of records per page. Default is 100.</param>
+        /// <param name="cancellationToken">Cancellation token for async operation.</param>
+        /// <returns>A list containing all agents.</returns>
+        /// <remarks>
+        /// <para>
+        /// This method retrieves agents from the /monitoring/agents/query endpoint using POST.
+        /// Agents are software components that collect monitoring data from monitored machines.
+        /// </para>
+        /// <para>
+        /// The method:
+        /// <list type="number">
+        /// <item><description>Performs a count-only query to determine total records</description></item>
+        /// <item><description>Fetches pages of agents until all are retrieved</description></item>
+        /// <item><description>Logs progress at debug level</description></item>
+        /// </list>
+        /// </para>
+        /// </remarks>
+        public async Task<List<AttributeFeature<AgentAttributes>>> GetAgentsAsync(
+            int pageSize = 100,
+            CancellationToken cancellationToken = default)
+        {
+            Log.Debug("Getting agent count...");
+
+            var countRequest = new QueryRequest
+            {
+                ReturnCountOnly = true,
+                ResultRecordCount = pageSize,
+                ResultOffset = 0
+            };
+
+            var countResponse = await _client.QueryAgentsAsync(countRequest, cancellationToken).ConfigureAwait(false);
+
+            var total = countResponse?.Features?.Count ?? 0;
+
+            Log.Debug("Total agents to retrieve: {Total}", total);
+
+            var agents = new List<AttributeFeature<AgentAttributes>>(Math.Max(total, 0));
+
+            for (var offset = 0; offset < Math.Max(total, 1); offset += pageSize)
+            {
+                Log.Debug("Fetching agents page: offset {Offset}, size {PageSize}", offset, pageSize);
+
+                var request = new QueryRequest
+                {
+                    ReturnCountOnly = false,
+                    ResultRecordCount = pageSize,
+                    ResultOffset = offset
+                };
+
+                var response = await _client.QueryAgentsAsync(request, cancellationToken).ConfigureAwait(false);
+
+                var pageCount = response?.Features?.Count ?? 0;
+
+                if (response?.Features != null)
+                {
+                    agents.AddRange(response.Features);
+                }
+
+                Log.Debug("Retrieved {PageCount} agents", pageCount);
+
+                if (total == 0)
+                {
+                    break;
+                }
+            }
+
+            Log.Debug("Completed fetching {Total} agents", agents.Count);
+
+            return agents;
+        }
+
+        /// <summary>
+        /// Retrieves all labels using automatic pagination.
+        /// </summary>
+        /// <param name="pageSize">Number of records per page. Default is 100.</param>
+        /// <param name="cancellationToken">Cancellation token for async operation.</param>
+        /// <returns>A list containing all labels.</returns>
+        /// <remarks>
+        /// <para>
+        /// This method retrieves labels from the /monitoring/labels/query endpoint using POST.
+        /// Labels are tags that can be assigned to components and other resources for categorization.
+        /// </para>
+        /// <para>
+        /// The method:
+        /// <list type="number">
+        /// <item><description>Performs a count-only query to determine total records</description></item>
+        /// <item><description>Fetches pages of labels until all are retrieved</description></item>
+        /// <item><description>Logs progress at debug level</description></item>
+        /// </list>
+        /// </para>
+        /// </remarks>
+        public async Task<List<AttributeFeature<LabelAttributes>>> GetLabelsAsync(
+            int pageSize = 100,
+            CancellationToken cancellationToken = default)
+        {
+            Log.Debug("Getting label count...");
+
+            var countRequest = new QueryRequest
+            {
+                ReturnCountOnly = true,
+                ResultRecordCount = pageSize,
+                ResultOffset = 0
+            };
+
+            var countResponse = await _client.QueryLabelsAsync(countRequest, cancellationToken).ConfigureAwait(false);
+
+            var total = countResponse?.Features?.Count ?? 0;
+
+            Log.Debug("Total labels to retrieve: {Total}", total);
+
+            var labels = new List<AttributeFeature<LabelAttributes>>(Math.Max(total, 0));
+
+            for (var offset = 0; offset < Math.Max(total, 1); offset += pageSize)
+            {
+                Log.Debug("Fetching labels page: offset {Offset}, size {PageSize}", offset, pageSize);
+
+                var request = new QueryRequest
+                {
+                    ReturnCountOnly = false,
+                    ResultRecordCount = pageSize,
+                    ResultOffset = offset
+                };
+
+                var response = await _client.QueryLabelsAsync(request, cancellationToken).ConfigureAwait(false);
+
+                var pageCount = response?.Features?.Count ?? 0;
+
+                if (response?.Features != null)
+                {
+                    labels.AddRange(response.Features);
+                }
+
+                Log.Debug("Retrieved {PageCount} labels", pageCount);
+
+                if (total == 0)
+                {
+                    break;
+                }
+            }
+
+            Log.Debug("Completed fetching {Total} labels", labels.Count);
+
+            return labels;
         }
     }
 }

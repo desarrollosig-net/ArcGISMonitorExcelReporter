@@ -172,7 +172,37 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// Gets or sets the alert rows.
         /// </summary>
         public List<AlertReportRow> Alerts { get; set; } = [];
-    }
+
+        /// <summary>
+        /// Gets or sets the unique agents found in components.
+        /// </summary>
+        public List<AgentReportRow> Agents { get; set; } = [];
+
+        /// <summary>
+        /// Gets or sets the unique labels found in components.
+        /// </summary>
+        public List<LabelReportRow> Labels { get; set; } = [];
+
+            /// <summary>
+            /// Gets or sets the ArcGIS Monitor information (version and available resources).
+            /// </summary>
+            public MonitoringInfo? MonitoringInfo { get; set; }
+
+            /// <summary>
+            /// Gets or sets the resource field information dictionary (resource name -> fields).
+            /// </summary>
+            public Dictionary<string, ResourceFieldInfo> ResourceFields { get; set; } = [];
+
+                /// <summary>
+                /// Gets or sets the component types information (available component types and their fields).
+                /// </summary>
+                public ComponentTypesInfo? ComponentTypes { get; set; }
+
+                /// <summary>
+                /// Gets or sets the total execution time of the report generation process.
+                /// </summary>
+                public TimeSpan ExecutionTime { get; set; }
+            }
 
     /// <summary>
     /// Represents a summary row for a collection and component type combination.
@@ -205,9 +235,24 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         public int ComponentId { get; set; }
 
         /// <summary>
+        /// Gets or sets the date and time when the component was created (UTC).
+        /// </summary>
+        public DateTimeOffset? CreatedAt { get; set; }
+
+        /// <summary>
+        /// Gets or sets the system-specific identifier for the component.
+        /// </summary>
+        public string? SystemId { get; set; }
+
+        /// <summary>
         /// Gets or sets the component name.
         /// </summary>
         public string? Name { get; set; }
+
+        /// <summary>
+        /// Gets or sets the description of the component.
+        /// </summary>
+        public string? Description { get; set; }
 
         /// <summary>
         /// Gets or sets the component type (e.g., "host", "service", "database").
@@ -240,9 +285,159 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         public string? Version { get; set; }
 
         /// <summary>
+        /// Gets or sets the location of the component.
+        /// </summary>
+        public string? Location { get; set; }
+
+        /// <summary>
+        /// Gets or sets the date and time when the component was started (UTC).
+        /// </summary>
+        public DateTimeOffset? StartedAt { get; set; }
+
+        /// <summary>
+        /// Gets or sets the classification of the component.
+        /// </summary>
+        public string? Class { get; set; }
+
+        /// <summary>
+        /// Gets or sets the CPU model name (for host components).
+        /// </summary>
+        public string? CpuName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the CPU clock speed in GHz (for host components).
+        /// </summary>
+        public double? CpuSpeed { get; set; }
+
+        /// <summary>
+        /// Gets or sets the number of physical CPU cores (for host components).
+        /// </summary>
+        public int? CpuCoresPhysical { get; set; }
+
+        /// <summary>
+        /// Gets or sets the number of logical CPU cores/threads (for host components).
+        /// </summary>
+        public int? CpuCoresLogical { get; set; }
+
+        /// <summary>
         /// Gets or sets the total memory in bytes.
         /// </summary>
         public double? MemoryTotal { get; set; }
+
+        /// <summary>
+        /// Gets or sets the total page/swap file size in MB (for host components).
+        /// </summary>
+        public double? MemoryPageTotal { get; set; }
+
+        /// <summary>
+        /// Gets or sets the network interface speed in Mbps (for host components).
+        /// </summary>
+        public int? NetworkSpeed { get; set; }
+
+        /// <summary>
+        /// Gets or sets the ID of the connection used to monitor this component.
+        /// </summary>
+        public int? ConnectionId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the date and time when the SSL/TLS certificate expires (UTC).
+        /// </summary>
+        public DateTimeOffset? CertExpiresAt { get; set; }
+
+        /// <summary>
+        /// Gets or sets the date and time when the license expires (UTC).
+        /// </summary>
+        public DateTimeOffset? LicenseExpiresAt { get; set; }
+
+        /// <summary>
+        /// Gets or sets the total storage capacity in GB (for host components).
+        /// </summary>
+        public double? StorageTotal { get; set; }
+
+        /// <summary>
+        /// Gets or sets the geodatabase version (for database components).
+        /// </summary>
+        public string? GdbVersion { get; set; }
+
+        /// <summary>
+        /// Gets or sets the minimum number of shared instances (for service components).
+        /// </summary>
+        public int? InstancesSharedMin { get; set; }
+
+        /// <summary>
+        /// Gets or sets the maximum number of shared instances (for service components).
+        /// </summary>
+        public int? InstancesSharedMax { get; set; }
+
+        /// <summary>
+        /// Gets or sets the system mode configuration.
+        /// </summary>
+        public string? SystemMode { get; set; }
+
+        /// <summary>
+        /// Gets or sets the system state information.
+        /// </summary>
+        public string? SystemState { get; set; }
+
+        /// <summary>
+        /// Gets or sets the instance type (e.g., "shared", "dedicated") for service components.
+        /// </summary>
+        public string? InstanceType { get; set; }
+
+        /// <summary>
+        /// Gets or sets the minimum number of instances (for service components).
+        /// </summary>
+        public int? InstancesMin { get; set; }
+
+        /// <summary>
+        /// Gets or sets the maximum number of instances (for service components).
+        /// </summary>
+        public int? InstancesMax { get; set; }
+
+        /// <summary>
+        /// Gets or sets the maximum wait time in seconds (for service components).
+        /// </summary>
+        public int? WaitTimeMax { get; set; }
+
+        /// <summary>
+        /// Gets or sets the maximum idle time in seconds (for service components).
+        /// </summary>
+        public int? IdleTimeMax { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether caching is enabled (for service components).
+        /// </summary>
+        public bool? IsCached { get; set; }
+
+        /// <summary>
+        /// Gets or sets the geometry type (for feature services).
+        /// </summary>
+        public string? GeometryType { get; set; }
+
+        /// <summary>
+        /// Gets or sets the versioning type (for geodatabase services).
+        /// </summary>
+        public string? VersionedType { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the data is archived (for geodatabase components).
+        /// </summary>
+        public bool? IsArchived { get; set; }
+
+        /// <summary>
+        /// Gets or sets the date and time of last modification (UTC).
+        /// </summary>
+        public DateTimeOffset? LastModifiedAt { get; set; }
+
+        /// <summary>
+        /// Gets or sets the date and time of last backup (UTC) for database components.
+        /// </summary>
+        public DateTimeOffset? LastBackupAt { get; set; }
+
+        /// <summary>
+        /// Gets or sets the maximum number of concurrent connections (for database components).
+        /// </summary>
+        public int? ConnectionsMax { get; set; }
 
         /// <summary>
         /// Gets or sets the number of metrics associated with this component.
@@ -528,6 +723,88 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
     }
 
     /// <summary>
+    /// Represents an agent (monitoring collector) from ArcGIS Monitor.
+    /// </summary>
+    public sealed class AgentReportRow
+    {
+        /// <summary>
+        /// Gets or sets the unique agent identifier.
+        /// </summary>
+        public int Id { get; set; }
+
+        /// <summary>
+        /// Gets or sets when the agent was created (UTC).
+        /// </summary>
+        public DateTimeOffset? CreatedAt { get; set; }
+
+        /// <summary>
+        /// Gets or sets the agent name.
+        /// </summary>
+        public string? Name { get; set; }
+
+        /// <summary>
+        /// Gets or sets the agent description.
+        /// </summary>
+        public string? Description { get; set; }
+
+        /// <summary>
+        /// Gets or sets the agent software version.
+        /// </summary>
+        public string? Version { get; set; }
+
+        /// <summary>
+        /// Gets or sets the network address of the agent.
+        /// </summary>
+        public string? Address { get; set; }
+
+        /// <summary>
+        /// Gets or sets the operating system platform (Windows, Linux, etc.).
+        /// </summary>
+        public string? Platform { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether the agent is currently connected.
+        /// </summary>
+        public bool? IsConnected { get; set; }
+
+        /// <summary>
+        /// Gets or sets the ID of the connection through which this agent connects (null for direct connections).
+        /// </summary>
+        public int? ThroughConnectionId { get; set; }
+    }
+
+    /// <summary>
+    /// Represents a label (tag) assigned to components in ArcGIS Monitor.
+    /// </summary>
+    public sealed class LabelReportRow
+    {
+        /// <summary>
+        /// Gets or sets the unique label identifier.
+        /// </summary>
+        public int Id { get; set; }
+
+        /// <summary>
+        /// Gets or sets when the label was created (UTC).
+        /// </summary>
+        public DateTimeOffset? CreatedAt { get; set; }
+
+        /// <summary>
+        /// Gets or sets the label name.
+        /// </summary>
+        public string? Name { get; set; }
+
+        /// <summary>
+        /// Gets or sets the label description.
+        /// </summary>
+        public string? Description { get; set; }
+
+        /// <summary>
+        /// Gets or sets the color code for the label (e.g., #FF5733).
+        /// </summary>
+        public string? Color { get; set; }
+    }
+
+    /// <summary>
     /// Provides methods for mapping ArcGIS Monitor response data to report models.
     /// </summary>
     public static class MonitorReportMapper
@@ -627,14 +904,47 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 {
                     CollectionName = collectionName,
                     ComponentId = c.Id,
+                    CreatedAt = c.CreatedAt,
+                    SystemId = c.SystemId,
                     Name = c.Name,
+                    Description = c.Description,
                     Type = c.Type,
                     Subtype = c.Subtype,
                     AddressInternal = c.AddressInternal,
                     State = c.State,
                     Status = c.Status,
                     Version = c.Version,
+                    Location = c.Location,
+                    StartedAt = c.StartedAt,
+                    Class = c.Class,
+                    CpuName = c.CpuName,
+                    CpuSpeed = c.CpuSpeed,
+                    CpuCoresPhysical = c.CpuCoresPhysical,
+                    CpuCoresLogical = c.CpuCoresLogical,
                     MemoryTotal = c.MemoryTotal,
+                    MemoryPageTotal = c.MemoryPageTotal,
+                    NetworkSpeed = c.NetworkSpeed,
+                    ConnectionId = c.ConnectionId,
+                    CertExpiresAt = c.CertExpiresAt,
+                    LicenseExpiresAt = c.LicenseExpiresAt,
+                    StorageTotal = c.StorageTotal,
+                    GdbVersion = c.GdbVersion,
+                    InstancesSharedMin = c.InstancesSharedMin,
+                    InstancesSharedMax = c.InstancesSharedMax,
+                    SystemMode = c.SystemMode,
+                    SystemState = c.SystemState,
+                    InstanceType = c.InstanceType,
+                    InstancesMin = c.InstancesMin,
+                    InstancesMax = c.InstancesMax,
+                    WaitTimeMax = c.WaitTimeMax,
+                    IdleTimeMax = c.IdleTimeMax,
+                    IsCached = c.IsCached,
+                    GeometryType = c.GeometryType,
+                    VersionedType = c.VersionedType,
+                    IsArchived = c.IsArchived,
+                    LastModifiedAt = c.LastModifiedAt,
+                    LastBackupAt = c.LastBackupAt,
+                    ConnectionsMax = c.ConnectionsMax,
                     MetricCount = metrics.Count,
                     AlertCount = alerts.Count
                 });
@@ -685,6 +995,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                                                    SumValue = d.SumValue,
                                                    CountValue = d.CountValue
                                                });
+
                     report.Alerts.AddRange(from alert in metric.Alerts ?? []
                                            let a = alert.Attributes
                                            select new AlertReportRow
@@ -701,12 +1012,52 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                                                ClosedAt = a.ClosedAt,
                                                Operator = a.Operator,
                                                InfoThreshold = a.InfoThreshold,
-                                               WarningThreshold = a.WarningThreshold,
-                                               CriticalThreshold = a.CriticalThreshold,
-                                               Duration = a.Duration
-                                           });
-                }
-            }
-        }
-    }
-}
+                                                                                               WarningThreshold = a.WarningThreshold,
+                                                                                               CriticalThreshold = a.CriticalThreshold,
+                                                                                               Duration = a.Duration
+                                                                                           });
+                                                               }
+                                                           }
+                                                       }
+
+                                                       /// <summary>
+                                                       /// Maps an agent feature to an AgentReportRow.
+                                                       /// </summary>
+                                                       /// <param name="agentFeature">The agent feature from the API response.</param>
+                                                       /// <returns>An AgentReportRow with all agent attributes.</returns>
+                                                       public static AgentReportRow MapAgentToRow(AttributeFeature<AgentAttributes> agentFeature)
+                                                       {
+                                                           var a = agentFeature.Attributes;
+                                                           return new AgentReportRow
+                                                           {
+                                                               Id = a.Id,
+                                                               CreatedAt = a.CreatedAt,
+                                                               Name = a.Name,
+                                                               Description = a.Description,
+                                                               Version = a.Version,
+                                                               Address = a.Address,
+                                                               Platform = a.Platform,
+                                                               IsConnected = a.IsConnected,
+                                                               ThroughConnectionId = a.ThroughConnectionId
+                                                           };
+                                                       }
+
+                                                       /// <summary>
+                                                       /// Maps a label feature to a LabelReportRow.
+                                                       /// </summary>
+                                                       /// <param name="labelFeature">The label feature from the API response.</param>
+                                                       /// <returns>A LabelReportRow with all label attributes.</returns>
+                                                       public static LabelReportRow MapLabelToRow(AttributeFeature<LabelAttributes> labelFeature)
+                                                       {
+                                                           var l = labelFeature.Attributes;
+                                                           return new LabelReportRow
+                                                           {
+                                                               Id = l.Id,
+                                                               CreatedAt = l.CreatedAt,
+                                                               Name = l.Name,
+                                                               Description = l.Description,
+                                                               Color = l.Color
+                                                           };
+                                                       }
+                                                   }
+                                               }

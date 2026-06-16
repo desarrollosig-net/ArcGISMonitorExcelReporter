@@ -1,7 +1,9 @@
 using ArcGISMonitorExcelReporterLib.Client;
 using ReporterConfiguration = ArcGISMonitorExcelReporterLib.Configuration.Configuration;
+using ArcGISMonitorExcelReporterLib.Models;
 using ArcGISMonitorExcelReporterLib.Reporting;
 using Serilog;
+using System.Diagnostics;
 
 namespace ArcGISMonitorExcelReporterLib
 {
@@ -10,7 +12,7 @@ namespace ArcGISMonitorExcelReporterLib
     /// Coordinates authentication, data querying, and Excel file generation.
     /// </summary>
     /// <param name="httpClient">Optional HTTP client to use for all requests. If null, clients will be created internally.</param>
-    public sealed class ArcGISMonitorExcelReporter(HttpClient? httpClient = null)
+    public sealed class ArcGisMonitorExcelReporter(HttpClient? httpClient = null)
     {
         private readonly HttpClient? _httpClient = httpClient;
 
@@ -37,13 +39,41 @@ namespace ArcGISMonitorExcelReporterLib
             using var client = CreateClient(configuration);
 
             Log.Information("Authenticating with ArcGIS Monitor as user: {Username}", configuration.Server.Username);
-            await client.AuthenticateAsync(
+             await client.AuthenticateAsync(
                 configuration.Server.Username,
                 configuration.Server.GetPassword(),
                 cancellationToken).ConfigureAwait(false);
             Log.Information("Authentication successful");
 
             var queryService = new ArcGisMonitorQueryService(client);
+
+            // Fetch and log ArcGIS Monitor version information
+            var monitoringInfo = await queryService.GetMonitoringInfoAsync(cancellationToken).ConfigureAwait(false);
+            if(monitoringInfo != null && !string.IsNullOrEmpty(monitoringInfo.Version))
+            {
+                Log.Information("ArcGIS Monitor Version: {Version}", monitoringInfo);
+            }
+            else
+            {
+                Log.Debug("Could not retrieve ArcGIS Monitor version information");
+            }
+
+            // Fetch field information for all available resources
+            var resourceFieldsDict = new Dictionary<string, ResourceFieldInfo>();
+            if(monitoringInfo?.Resources?.Count > 0)
+            {
+                Log.Information("Fetching field information for {Count} resources", monitoringInfo.Resources.Count);
+                resourceFieldsDict = await queryService.GetAllResourceFieldsAsync(monitoringInfo.Resources, cancellationToken).ConfigureAwait(false);
+                Log.Information("Retrieved field information for {Count} resources", resourceFieldsDict.Count);
+            }
+
+            // Fetch component types information
+            var componentTypesInfo = await queryService.GetComponentTypesAsync(cancellationToken).ConfigureAwait(false);
+            if(componentTypesInfo?.Types?.Count > 0)
+            {
+                Log.Information("Retrieved {Count} component types", componentTypesInfo.Types.Count);
+            }
+
             var reportService = new MonitorReportService(queryService);
 
             Log.Information("Building report from {FromUtc:yyyy-MM-dd HH:mm:ss} to {ToUtc:yyyy-MM-dd HH:mm:ss} UTC",
@@ -51,6 +81,11 @@ namespace ArcGISMonitorExcelReporterLib
                 configuration.ToReportRequest().ToUtc);
 
             var report = await reportService.BuildReportAsync(configuration.ToReportRequest(), cancellationToken).ConfigureAwait(false);
+
+            // Attach monitoring information to the report
+            report.MonitoringInfo = monitoringInfo;
+            report.ResourceFields = resourceFieldsDict;
+            report.ComponentTypes = componentTypesInfo;
 
             Log.Information("Report built successfully: {Collections} collections, {Components} components, {Metrics} metrics",
                 report.Collections.Count, report.Components.Count, report.Metrics.Count);
@@ -73,7 +108,35 @@ namespace ArcGISMonitorExcelReporterLib
         public async Task<string> GenerateExcelAsync(
             ReporterConfiguration configuration,
             string outputExcelPath,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default) => await GenerateExcelAsyncInternal(configuration, outputExcelPath, null, cancellationToken).ConfigureAwait(false);
+
+        /// <summary>
+        /// Builds a monitor report and writes it to an Excel file with execution time tracking.
+        /// </summary>
+        /// <param name="configuration">Configuration containing server connection details and report parameters.</param>
+        /// <param name="outputExcelPath">Full path where the Excel file should be written.</param>
+        /// <param name="stopwatch">Stopwatch to measure execution time.</param>
+        /// <param name="cancellationToken">Optional cancellation token.</param>
+        /// <returns>The path to the generated Excel file.</returns>
+        /// <exception cref="ArgumentException">Thrown if outputExcelPath is null or whitespace.</exception>
+        /// <exception cref="ArgumentNullException">Thrown if configuration is null.</exception>
+        /// <exception cref="InvalidOperationException">Thrown if configuration validation or authentication fails.</exception>
+        /// <exception cref="HttpRequestException">Thrown if communication with ArcGIS Monitor fails.</exception>
+        /// <exception cref="IOException">Thrown if Excel file cannot be written.</exception>
+        public async Task<string> GenerateExcelAsync(
+            ReporterConfiguration configuration,
+            string outputExcelPath,
+            Stopwatch stopwatch,
+            CancellationToken cancellationToken = default) => await GenerateExcelAsyncInternal(configuration, outputExcelPath, stopwatch, cancellationToken).ConfigureAwait(false);
+
+        /// <summary>
+        /// Internal implementation of GenerateExcelAsync.
+        /// </summary>
+        private async Task<string> GenerateExcelAsyncInternal(
+            ReporterConfiguration configuration,
+            string outputExcelPath,
+            Stopwatch? stopwatch,
+            CancellationToken cancellationToken)
         {
             if(string.IsNullOrWhiteSpace(outputExcelPath))
             {
@@ -82,6 +145,12 @@ namespace ArcGISMonitorExcelReporterLib
 
             Log.Information("Starting report generation for output: {OutputPath}", outputExcelPath);
             var report = await BuildReportAsync(configuration, cancellationToken).ConfigureAwait(false);
+
+            // Set execution time if stopwatch was provided
+            if(stopwatch != null)
+            {
+                report.ExecutionTime = stopwatch.Elapsed;
+            }
 
             Log.Information("Writing Excel file...");
             MonitorExcelReportWriter.Save(report, outputExcelPath);
@@ -119,7 +188,7 @@ namespace ArcGISMonitorExcelReporterLib
         private ArcGisMonitorClient CreateClient(ReporterConfiguration configuration)
         {
             var baseUrl = configuration.Server.Url.TrimEnd('/');
-            var baseUri = new Uri(baseUrl + "/");
+            var baseUri = new Uri(baseUrl + Path.DirectorySeparatorChar);
 
             var clientToUse = _httpClient;
             if(clientToUse is null && configuration.Server.IgnoreSslErrors)

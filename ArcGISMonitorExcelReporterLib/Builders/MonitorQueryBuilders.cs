@@ -50,6 +50,7 @@ namespace ArcGISMonitorExcelReporterLib.Builders
     public static class MonitorQueryBuilders
     {
         private const string ComponentsResource = "components";
+        private const string MetricsResource = "metrics";
 
         /// <summary>
         /// Builds a query request for collection components with optional related resources.
@@ -216,44 +217,7 @@ namespace ArcGISMonitorExcelReporterLib.Builders
                 ResultRecordCount = resultRecordCount,
                 ResultOffset = resultOffset,
                 Where = $"type = '{EscapeSqlLiteral(componentType)}'",
-                Including = [new CollectionIncludeSpec { Resource = "metrics" }]
-            });
-
-        /// <summary>
-        /// Builds a query request for ALL collection components (without type filter) including only their metrics (no statistics or alerts).
-        /// </summary>
-        /// <param name="collectionName">The name of the collection to query. Use <c>null</c>, <c>""</c>, or <c>"*"</c> to query all collections.</param>
-        /// <param name="returnCountOnly">If <c>true</c>, returns only the count; otherwise returns full data with metrics.</param>
-        /// <param name="resultRecordCount">Maximum number of component records to return. Default is 100.</param>
-        /// <param name="resultOffset">Offset for pagination. Default is 0.</param>
-        /// <returns>A configured <see cref="CollectionQueryRequest"/> with nested metrics (no statistics or alerts).</returns>
-        /// <remarks>
-        /// <para>
-        /// This overload retrieves ALL components (regardless of type) along with their metric definitions,
-        /// but does NOT include statistics or alerts. Use this when you only need metric metadata.
-        /// </para>
-        /// <para>
-        /// For metrics with aggregated statistics and alerts, use the overload that accepts date parameters.
-        /// </para>
-        /// </remarks>
-        public static CollectionQueryRequest CollectionAllComponentsWithMetrics(
-            string collectionName,
-            bool returnCountOnly = false,
-            int resultRecordCount = 100,
-            int resultOffset = 0) => CollectionRequest(collectionName, new CollectionIncludeSpec
-            {
-                Resource = ComponentsResource,
-                ReturnCountOnly = returnCountOnly,
-                ResultRecordCount = resultRecordCount,
-                ResultOffset = resultOffset,
-                Where = null, // No type filter - get ALL components
-                Including =
-                [
-                    new CollectionIncludeSpec
-                    {
-                        Resource = "metrics"
-                    }
-                ]
+                Including = [new CollectionIncludeSpec { Resource = MetricsResource }]
             });
 
         /// <summary>
@@ -468,7 +432,7 @@ namespace ArcGISMonitorExcelReporterLib.Builders
                 [
                     new CollectionIncludeSpec
                     {
-                        Resource = "metrics",
+                        Resource = MetricsResource,
                         Where = $"name like '{EscapeSqlLiteral(metricNameLike)}%'",
                         Including =
                         [
@@ -705,42 +669,6 @@ namespace ArcGISMonitorExcelReporterLib.Builders
         /// </example>
         public static string FormatMonitorTimestamp(DateTimeOffset value)
             => value.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'");
-
-        /// <summary>
-        /// Builds a query request to retrieve components directly (without type filter) including only their metrics (no statistics or alerts).
-        /// </summary>
-        /// <param name="where">SQL-like where clause (e.g., "state = 'monitored'").</param>
-        /// <param name="returnCountOnly">If true, only returns the count of components.</param>
-        /// <param name="resultRecordCount">Maximum number of records to return per page. Default is 100.</param>
-        /// <param name="resultOffset">Offset for pagination. Default is 0.</param>
-        /// <returns>A component query request with nested metrics (no statistics or alerts).</returns>
-        /// <remarks>
-        /// <para>
-        /// This overload retrieves components along with their metric definitions,
-        /// but does NOT include statistics or alerts. Use this when you only need metric metadata.
-        /// </para>
-        /// <para>
-        /// For metrics with aggregated statistics and alerts, use the overload that accepts date parameters.
-        /// </para>
-        /// </remarks>
-        public static ComponentQueryRequest AllComponentsWithMetrics(
-            string where,
-            bool returnCountOnly = false,
-            int resultRecordCount = 100,
-            int resultOffset = 0) => new()
-            {
-                Where = where,
-                ReturnCountOnly = returnCountOnly,
-                ResultRecordCount = resultRecordCount,
-                ResultOffset = resultOffset,
-                Including =
-                [
-                    new ComponentIncludeSpec
-                    {
-                        Resource = "metrics"
-                    }
-                ]
-            };
 
         /// <summary>
         /// Builds a query request to retrieve components directly with metrics, aggregated statistics, and alerts using the /monitoring/components/query endpoint.

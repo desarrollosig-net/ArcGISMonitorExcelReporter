@@ -174,6 +174,66 @@ namespace ArcGISMonitorExcelReporterLib.Models
     }
 
     /// <summary>
+    /// Custom JSON converter for <see cref="ComponentTypesInfo"/> that handles both object and array formats.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This converter handles the polymorphic JSON response for component types:
+    /// <list type="bullet">
+    /// <item><description>When response is an object: { "types": [TypeDefinition, ...] }</description></item>
+    /// <item><description>When response is an array: [TypeDefinition, TypeDefinition, ...]</description></item>
+    /// <item><description>When response is null: null</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    public sealed class ComponentTypesInfoJsonConverter : JsonConverter<ComponentTypesInfo>
+    {
+        /// <summary>
+        /// Reads and deserializes JSON to a <see cref="ComponentTypesInfo"/>.
+        /// </summary>
+        public override ComponentTypesInfo Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if(reader.TokenType == JsonTokenType.StartObject)
+            {
+                using var doc = JsonDocument.ParseValue(ref reader);
+                var result = new ComponentTypesInfo();
+
+                if(doc.RootElement.TryGetProperty("types", out var types) && types.ValueKind == JsonValueKind.Array)
+                {
+                    result.Types = JsonSerializer.Deserialize<List<ComponentTypeDefinition>>(types.GetRawText(), options);
+                }
+
+                return result;
+            }
+
+            if(reader.TokenType == JsonTokenType.StartArray)
+            {
+                var items = JsonSerializer.Deserialize<List<ComponentTypeDefinition>>(ref reader, options) ?? [];
+                return new ComponentTypesInfo { Types = items };
+            }
+
+            return reader.TokenType == JsonTokenType.Null
+                ? new ComponentTypesInfo()
+                : throw new JsonException($"Can't convert token {reader.TokenType} to ComponentTypesInfo.");
+        }
+
+        /// <summary>
+        /// Writes a <see cref="ComponentTypesInfo"/> to JSON.
+        /// </summary>
+        public override void Write(Utf8JsonWriter writer, ComponentTypesInfo value, JsonSerializerOptions options)
+        {
+            writer.WriteStartObject();
+
+            if(value.Types?.Count > 0)
+            {
+                writer.WritePropertyName("types");
+                JsonSerializer.Serialize(writer, value.Types, options);
+            }
+
+            writer.WriteEndObject();
+        }
+    }
+
     /// Represents a component (monitored resource) in ArcGIS Monitor.
     /// </summary>
     /// <remarks>
@@ -807,13 +867,297 @@ namespace ArcGISMonitorExcelReporterLib.Models
     /// This class uses JsonExtensionData to handle observer fields dynamically,
     /// as different observer types may have different configuration properties.
     /// </para>
-    /// </remarks>
-    public sealed class ObserverAttributes
-    {
+         /// </remarks>
+        public sealed class ObserverAttributes
+        {
+            /// <summary>
+            /// Additional properties from the JSON that aren't explicitly mapped.
+            /// </summary>
+            [JsonExtensionData]
+            public Dictionary<string, JsonElement>? AdditionalProperties { get; set; }
+        }
+
         /// <summary>
-        /// Additional properties from the JSON that aren't explicitly mapped.
+        /// Represents information from the ArcGIS Monitor /monitoring endpoint.
         /// </summary>
-        [JsonExtensionData]
-        public Dictionary<string, JsonElement>? AdditionalProperties { get; set; }
+        /// <remarks>
+        /// This class contains version and other system information about ArcGIS Monitor.
+        /// </remarks>
+        public sealed class MonitoringInfo
+        {
+            /// <summary>
+            /// Gets or sets the version of ArcGIS Monitor.
+            /// </summary>
+            [JsonPropertyName("version")]
+            public string? Version { get; set; }
+
+            /// <summary>
+            /// Gets or sets the list of available API resources.
+            /// </summary>
+            [JsonPropertyName("resources")]
+            public List<string>? Resources { get; set; }
+
+            /// <summary>
+            /// Gets or sets the list of available operations.
+            /// </summary>
+            [JsonPropertyName("operations")]
+            public List<string>? Operations { get; set; }
+
+            /// <summary>
+            /// Additional properties from the JSON that aren't explicitly mapped.
+            /// </summary>
+            [JsonExtensionData]
+            public Dictionary<string, JsonElement>? AdditionalProperties { get; set; }
+
+        /// <summary>
+        /// Returns a display string for the monitoring information.
+        /// </summary>
+        public override string ToString() => Version ?? "Unknown";
     }
-}
+
+        /// <summary>
+        /// Represents field information for a specific resource from the /monitoring/{resource} endpoint.
+        /// </summary>
+        public sealed class ResourceFieldInfo
+        {
+            /// <summary>
+            /// Gets or sets the name of the resource (e.g., "metrics", "alerts", "components").
+            /// </summary>
+            [JsonPropertyName("name")]
+            public string? Name { get; set; }
+
+            /// <summary>
+            /// Gets or sets the list of field definitions available for this resource.
+            /// </summary>
+            [JsonPropertyName("fields")]
+            public List<FieldDefinition>? Fields { get; set; }
+
+            /// <summary>
+            /// Gets or sets additional properties not explicitly mapped.
+            /// </summary>
+            [JsonExtensionData]
+            public Dictionary<string, JsonElement>? AdditionalProperties { get; set; }
+
+        /// <inheritdoc />
+        public override string ToString() => $"{Name}: {Fields?.Count ?? 0} fields";
+    }
+
+        /// <summary>
+        /// Represents a field definition for a resource.
+        /// </summary>
+        public sealed class FieldDefinition
+        {
+            /// <summary>
+            /// Gets or sets the field name.
+            /// </summary>
+            [JsonPropertyName("name")]
+            public string? Name { get; set; }
+
+            /// <summary>
+            /// Gets or sets the field type (e.g., "string", "number", "date").
+            /// </summary>
+            [JsonPropertyName("type")]
+            public string? Type { get; set; }
+
+            /// <summary>
+            /// Gets or sets the field description.
+            /// </summary>
+            [JsonPropertyName("description")]
+            public string? Description { get; set; }
+
+            /// <summary>
+            /// Gets or sets a value indicating whether the field is required.
+            /// </summary>
+            [JsonPropertyName("required")]
+            public bool? Required { get; set; }
+
+            /// <summary>
+            /// Gets or sets the field alias (display name for user-friendly column headers).
+            /// </summary>
+            [JsonPropertyName("alias")]
+            public string? Alias { get; set; }
+
+                /// <summary>
+                /// Gets or sets additional properties not explicitly mapped.
+                /// </summary>
+                [JsonExtensionData]
+                public Dictionary<string, JsonElement>? AdditionalProperties { get; set; }
+
+        /// <inheritdoc />
+        public override string ToString() => $"{Name} ({Type})";
+    }
+
+            /// <summary>
+            /// Represents a component type definition from the /monitoring/components endpoint.
+            /// </summary>
+            /// <remarks>
+            /// Each component type (e.g., "host", "database", "service", "storage") has a list of field names
+            /// that describe the available attributes for that type.
+            /// </remarks>
+            public sealed class ComponentTypeDefinition
+        {
+            /// <summary>
+            /// Gets or sets the unique identifier for the component type.
+            /// </summary>
+            [JsonPropertyName("id")]
+            public string? Id { get; set; }
+
+            /// <summary>
+            /// Gets or sets the creation timestamp of the component type.
+            /// </summary>
+            [JsonPropertyName("created_at")]
+            public DateTime? CreatedAt { get; set; }
+
+            /// <summary>
+            /// Gets or sets the system identifier associated with this component type.
+            /// </summary>
+            [JsonPropertyName("system_id")]
+            public string? SystemId { get; set; }
+
+            /// <summary>
+            /// Gets or sets the name of the component type (e.g., "host", "database", "service", "storage").
+            /// </summary>
+            [JsonPropertyName("name")]
+            public string? Name { get; set; }
+
+            /// <summary>
+            /// Gets or sets the description of the component type.
+            /// </summary>
+            [JsonPropertyName("description")]
+            public string? Description { get; set; }
+
+            /// <summary>
+            /// Gets or sets the type classification of the component.
+            /// </summary>
+            [JsonPropertyName("type")]
+            public string? Type { get; set; }
+
+            /// <summary>
+            /// Gets or sets the subtype classification of the component.
+            /// </summary>
+            [JsonPropertyName("subtype")]
+            public string? Subtype { get; set; }
+
+            /// <summary>
+            /// Gets or sets the internal network address of the component.
+            /// </summary>
+            [JsonPropertyName("address_internal")]
+            public string? AddressInternal { get; set; }
+
+            /// <summary>
+            /// Gets or sets the current status of the component.
+            /// </summary>
+            [JsonPropertyName("status")]
+            public string? Status { get; set; }
+
+            /// <summary>
+            /// Gets or sets the version information of the component.
+            /// </summary>
+            [JsonPropertyName("version")]
+            public string? Version { get; set; }
+
+            /// <summary>
+            /// Gets or sets the geographic location of the component.
+            /// </summary>
+            [JsonPropertyName("location")]
+            public string? Location { get; set; }
+
+            /// <summary>
+            /// Gets or sets the class or category of the component.
+            /// </summary>
+            [JsonPropertyName("class")]
+            public string? Class { get; set; }
+
+            /// <summary>
+            /// Gets or sets when the component started.
+            /// </summary>
+            [JsonPropertyName("started_at")]
+            public DateTime? StartedAt { get; set; }
+
+            /// <summary>
+            /// Gets or sets the CPU name/model of the host component.
+            /// </summary>
+            [JsonPropertyName("cpu_name")]
+            public string? CpuName { get; set; }
+
+            /// <summary>
+            /// Gets or sets the CPU speed in MHz of the host component.
+            /// </summary>
+            [JsonPropertyName("cpu_speed")]
+            public decimal? CpuSpeed { get; set; }
+
+            /// <summary>
+            /// Gets or sets the number of physical CPU cores of the host component.
+            /// </summary>
+            [JsonPropertyName("cpu_cores_physical")]
+            public int? CpuCoresPhysical { get; set; }
+
+            /// <summary>
+            /// Gets or sets the number of logical CPU cores of the host component.
+            /// </summary>
+            [JsonPropertyName("cpu_cores_logical")]
+            public int? CpuCoresLogical { get; set; }
+
+            /// <summary>
+            /// Gets or sets the total memory in GB of the host component.
+            /// </summary>
+            [JsonPropertyName("memory_total")]
+            public decimal? MemoryTotal { get; set; }
+
+            /// <summary>
+            /// Gets or sets the total page memory in GB of the host component.
+            /// </summary>
+            [JsonPropertyName("memory_page_total")]
+            public decimal? MemoryPageTotal { get; set; }
+
+            /// <summary>
+            /// Gets or sets the network speed in Mbps of the host component.
+            /// </summary>
+            [JsonPropertyName("network_speed")]
+            public decimal? NetworkSpeed { get; set; }
+
+            /// <summary>
+            /// Gets or sets the list of field names available for this component type.
+            /// </summary>
+            /// <remarks>
+            /// These are the names of fields that can be queried or displayed for components of this type.
+            /// </remarks>
+            [JsonPropertyName("names")]
+            public List<string>? Names { get; set; }
+
+            /// <summary>
+            /// Gets or sets additional properties not explicitly mapped.
+            /// </summary>
+            [JsonExtensionData]
+            public Dictionary<string, JsonElement>? AdditionalProperties { get; set; }
+
+        /// <inheritdoc />
+        public override string ToString() => $"{Name}: {Names?.Count ?? 0} fields";
+    }
+
+        /// <summary>
+        /// Represents the component types information from the /monitoring/components endpoint.
+        /// </summary>
+        /// <remarks>
+        /// This class contains metadata about available component types and their fields.
+        /// </remarks>
+        [JsonConverter(typeof(ComponentTypesInfoJsonConverter))]
+        public sealed class ComponentTypesInfo
+        {
+            /// <summary>
+            /// Gets or sets the list of component type definitions.
+            /// </summary>
+            [JsonPropertyName("types")]
+            public List<ComponentTypeDefinition>? Types { get; set; }
+
+            /// <summary>
+            /// Gets or sets additional properties not explicitly mapped.
+            /// </summary>
+            [JsonExtensionData]
+            public Dictionary<string, JsonElement>? AdditionalProperties { get; set; }
+
+        /// <inheritdoc />
+        public override string ToString() => $"Component Types: {Types?.Count ?? 0} types";
+    }
+    }     
+

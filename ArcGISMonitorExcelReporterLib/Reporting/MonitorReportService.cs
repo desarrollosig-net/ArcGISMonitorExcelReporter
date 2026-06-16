@@ -206,6 +206,9 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 await ProcessCollectionAsync(report, collectionName, typesToFilter, isAllTypes, request, cancellationToken).ConfigureAwait(false);
             }
 
+            Log.Information("Fetching agents and labels...");
+            await FetchAgentsAndLabelsAsync(report, cancellationToken).ConfigureAwait(false);
+
             Log.Information("Applying metric filters...");
             ApplyMetricFilters(report, request);
 
@@ -503,6 +506,55 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         }
 
         /// <summary>
+        /// Fetches agents and labels from ArcGIS Monitor and adds them to the report.
+        /// </summary>
+        /// <param name="report">The report to populate with agents and labels.</param>
+        /// <param name="cancellationToken">Cancellation token for async operation.</param>
+        /// <remarks>
+        /// This method retrieves agents and labels using the query service and maps them to report rows.
+        /// </remarks>
+        private async Task FetchAgentsAndLabelsAsync(
+            MonitorExcelReport report,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                Log.Debug("Fetching agents...");
+                var agents = await _queries.GetAgentsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+
+                foreach (var agent in agents)
+                {
+                    var agentRow = MonitorReportMapper.MapAgentToRow(agent);
+                    report.Agents.Add(agentRow);
+                }
+
+                Log.Debug("Retrieved {Count} agents", report.Agents.Count);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to fetch agents");
+            }
+
+            try
+            {
+                Log.Debug("Fetching labels...");
+                var labels = await _queries.GetLabelsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+
+                foreach (var label in labels)
+                {
+                    var labelRow = MonitorReportMapper.MapLabelToRow(label);
+                    report.Labels.Add(labelRow);
+                }
+
+                Log.Debug("Retrieved {Count} labels", report.Labels.Count);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to fetch labels");
+            }
+        }
+
+        /// <summary>
         /// Fetches time series data for metrics in the report.
         /// </summary>
         /// <param name="report">The report containing metrics to fetch time series for.</param>
@@ -515,7 +567,7 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         private async Task FetchMetricTimeSeriesAsync(
             MonitorExcelReport report,
             MonitorReportRequest request,
-            int batchSize = 50,
+            int batchSize = 100,
             CancellationToken cancellationToken = default)
         {
             Log.Information("Fetching metric time series data...");
@@ -532,9 +584,8 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 return;
             }
 
-            Log.Debug("Requesting time series for {Count} metrics", metricIds.Count);
-
-            const string bucket = "observed_at:15m";
+            var bucket = SelectObservedAtBucket(request.FromUtc, request.ToUtc);
+            Log.Debug("Requesting time series for {Count} metrics with bucket {Bucket}", metricIds.Count, bucket);
 
             var series = await _queries.GetMetricTimeSeriesAsync(
                 metricIds,
@@ -544,15 +595,78 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 batchSize,
                 cancellationToken).ConfigureAwait(false);
 
-            var rawRows = ProcessMetricTimeSeries(report, series);
-            Log.Debug("Raw time series: {RawCount} data points before downsampling", rawRows.Count);
+            var timeSeriesRows = ProcessMetricTimeSeries(report, series);
 
-            var (downsampledRows, effectiveBucket) = DownsampleMetricTimeSeries(rawRows);
-            report.MetricDataBucket = effectiveBucket;
-            report.TimeSeriesMetricData.AddRange(downsampledRows);
+            // Extract bucket interval from the bucket specification (e.g., "observed_at:hour" -> "hour")
+            var bucketLabel = ExtractBucketLabel(bucket);
+            report.MetricDataBucket = bucketLabel;
+            report.TimeSeriesMetricData.AddRange(timeSeriesRows);
 
-            Log.Information("Retrieved {DataPoints} time series data points (downsampled from {RawCount}, bucket: {Bucket})",
-                downsampledRows.Count, rawRows.Count, effectiveBucket);
+            Log.Information("Retrieved {DataPoints} time series data points (bucket: {Bucket})",
+                timeSeriesRows.Count, bucket);
+        }
+
+        /// <summary>
+        /// Extracts the bucket interval label from a bucket specification.
+        /// </summary>
+        /// <param name="bucket">The bucket specification (e.g., "observed_at:hour").</param>
+        /// <returns>The bucket interval label (e.g., "hour").</returns>
+        /// <example>
+        /// ExtractBucketLabel("observed_at:hour") returns "hour"
+        /// ExtractBucketLabel("observed_at:15m") returns "15m"
+        /// </example>
+        private static string ExtractBucketLabel(string bucket)
+        {
+            if(string.IsNullOrWhiteSpace(bucket))
+            {
+                return "15m";
+            }
+
+            var colonIndex = bucket.IndexOf(':');
+            return colonIndex == -1 || colonIndex >= bucket.Length - 1 ? bucket : bucket.Substring(colonIndex + 1);
+        }
+
+        /// <summary>
+        /// Selects the observed_at bucket for metric time series using the requested time range.
+        /// </summary>
+        /// <param name="fromUtc">Start of the requested range in UTC.</param>
+        /// <param name="toUtc">End of the requested range in UTC.</param>
+        /// <param name="minimumDataPoints">Minimum target points per metric series. Default is 200.</param>
+        /// <returns>The bucket expression to use in ArcGIS Monitor queries (e.g., "observed_at:15m").</returns>
+        private static string SelectObservedAtBucket(
+            DateTimeOffset fromUtc,
+            DateTimeOffset toUtc,
+            int minimumDataPoints = 200)
+        {
+            if(minimumDataPoints <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(minimumDataPoints), minimumDataPoints, "minimumDataPoints must be greater than zero.");
+            }
+
+            var totalMinutes = (toUtc - fromUtc).TotalMinutes;
+            if(totalMinutes <= 0)
+            {
+                return "observed_at:5m";
+            }
+
+            (string Token, int Minutes)[] bucketOptions =
+            [
+                ("day", 1440),
+                ("hour", 60),
+                ("15m", 15),
+                ("5m", 5)
+            ];
+
+            foreach(var (token, minutes) in bucketOptions)
+            {
+                var estimatedPoints = (int)Math.Floor(totalMinutes / minutes) + 1;
+                if(estimatedPoints >= minimumDataPoints)
+                {
+                    return $"observed_at:{token}";
+                }
+            }
+
+            return "observed_at:5m";
         }
 
         /// <summary>

@@ -1,13 +1,17 @@
 ﻿using ArcGISMonitorExcelReporterLib;
 
 using ReporterConfiguration = ArcGISMonitorExcelReporterLib.Configuration.Configuration;
-using Reporter = ArcGISMonitorExcelReporterLib.ArcGISMonitorExcelReporter;
+using Reporter = ArcGISMonitorExcelReporterLib.ArcGisMonitorExcelReporter;
 
 using Serilog;
+using System.Diagnostics;
 
 // This application creates two folders relative to the configuration file location:
 // - logs/: Contains rolling log files (arcgis-monitor-reporter-{date}.log)
 // - reports/: Contains generated Excel reports ({config-name}_{yyyyMMdd_HHmm}.xlsx)
+
+// Start measuring execution time
+var stopwatch = Stopwatch.StartNew();
 
 // Parse command line arguments
 if(!TryParseArguments(args, out var configFilePath))
@@ -80,11 +84,16 @@ try
     await reporter.GenerateExcelAsync(
         configuration,
         outputExcelPath,
+        stopwatch,
         cancellationToken);
+
+    stopwatch.Stop();
+    var executionTime = stopwatch.Elapsed;
 
     Log.Information(decoration);
     Log.Information("=== Report generated successfully ===");
     Log.Information("=== Output: {OutputPath} ===", outputExcelPath);
+    Log.Information("=== Execution time: {ExecutionTime} ===", executionTime.ToString("hh\\:mm\\:ss"));
     Log.Information("=== Version: {Version} ===", VersionInfo.Version);
     Log.Information(decoration);
     return 0; // Exit with success code
