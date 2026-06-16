@@ -72,6 +72,16 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         public DateTimeOffset ToUtc { get; set; }
 
         /// <summary>
+        /// Gets or sets the start of the time range (local time).
+        /// </summary>
+        public DateTimeOffset FromLocal { get; set; }
+
+        /// <summary>
+        /// Gets or sets the end of the time range (local time).
+        /// </summary>
+        public DateTimeOffset ToLocal { get; set; }
+
+        /// <summary>
         /// Gets or sets the page size for paginated queries. Default is 100.
         /// </summary>
         public int PageSize { get; set; } = 100;
