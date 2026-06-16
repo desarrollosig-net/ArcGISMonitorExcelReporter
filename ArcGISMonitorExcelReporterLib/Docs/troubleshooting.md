@@ -79,12 +79,12 @@ Reduce the number of metrics fetched for time series:
 {
   "report": {
     "include_metric_time_series": true,
-    "max_metric_ids_for_time_series": 500
+    "max_metric_ids_for_time_series": null
   }
 }
 ```
 
-Default is 5000. Try lower values like 500, 1000, or 2000.
+Default is `null` (unlimited). Try lower values like 500, 1000, or 2000.
 
 #### 4. Use Metric Filters
 
@@ -222,7 +222,7 @@ or application becomes very slow
 ### Solutions
 
 1. **Disable time series data**: Use `"include_metric_time_series": false`
-2. **Reduce `max_metric_ids_for_time_series`**: Lower from 5000 to 500-1000
+2. **Reduce `max_metric_ids_for_time_series`**: Lower from `null` (unlimited) to 500-1000
 3. **Query fewer components**: Use filters or split into multiple reports
 4. **Reduce time range**: Query shorter periods
 5. **Increase available memory**: 

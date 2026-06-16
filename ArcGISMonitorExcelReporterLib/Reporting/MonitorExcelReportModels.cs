@@ -97,9 +97,9 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         public bool IncludeMetricTimeSeries { get; set; } = true;
 
         /// <summary>
-        /// Gets or sets the maximum number of metric IDs to fetch time series for. Default is 5000.
+        /// Gets or sets the maximum number of metric IDs to fetch time series for. Default is null (unlimited).
         /// </summary>
-        public int? MaxMetricIdsForTimeSeries { get; set; } = 5000;
+        public int? MaxMetricIdsForTimeSeries { get; set; } = null;
     }
 
     /// <summary>
