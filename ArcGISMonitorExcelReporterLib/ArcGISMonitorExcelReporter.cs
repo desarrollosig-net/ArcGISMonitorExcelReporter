@@ -55,7 +55,7 @@ namespace ArcGISMonitorExcelReporterLib
             }
             else
             {
-                Log.Debug("Could not retrieve ArcGIS Monitor version information");
+                Log.Information("Could not retrieve ArcGIS Monitor version information");
             }
 
             // Fetch field information for all available resources

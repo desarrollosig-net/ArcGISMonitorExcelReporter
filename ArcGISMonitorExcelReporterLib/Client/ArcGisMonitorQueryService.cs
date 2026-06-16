@@ -112,19 +112,19 @@ namespace ArcGISMonitorExcelReporterLib.Client
             string messageTemplate, int pageSize = 100,
             CancellationToken cancellationToken = default)
         {
-            Log.Debug("Getting component count for {Collection}/{Type}...", collectionName, componentType);
+            Log.Information("Getting component count for {Collection}/{Type}...", collectionName, componentType);
 
             var countRequest = MonitorQueryBuilders.CollectionComponentsWithAllMetrics(collectionName, componentType, true, pageSize, 0);
             var countResponse = await _client.QueryCollectionsAsync(countRequest, cancellationToken).ConfigureAwait(false);
             var total = countResponse.Features.FirstOrDefault()?.Components.Count ?? 0;
 
-            Log.Debug("Total components to retrieve: {Total}", total);
+            Log.Information("Total components to retrieve: {Total}", total);
 
             var components = new List<ComponentFeature>(Math.Max(total, 0));
 
             for(var offset = 0; offset < Math.Max(total, 1); offset += pageSize)
             {
-                Log.Debug("Fetching components page: offset {Offset}, size {PageSize}", offset, pageSize);
+                Log.Information("Fetching components page: offset {Offset}, size {PageSize}", offset, pageSize);
 
                 var request = MonitorQueryBuilders.CollectionComponentsWithAllMetrics(collectionName, componentType, false, pageSize, offset);
                 var response = await _client.QueryCollectionsAsync(request, cancellationToken).ConfigureAwait(false);
@@ -132,7 +132,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
 
                 components.AddRange(response.Features.SelectMany(f => f.Components.Items));
 
-                Log.Debug(messageTemplate: messageTemplate, pageCount);
+                Log.Information(messageTemplate: messageTemplate, pageCount);
 
                 if(total == 0)
                 {
@@ -140,7 +140,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
                 }
             }
 
-            Log.Debug("Completed fetching {Total} components with metrics", components.Count);
+            Log.Information("Completed fetching {Total} components with metrics", components.Count);
 
             return components;
         }
@@ -261,7 +261,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
 
             if(queryComponents)
             {
-                Log.Debug("Getting component count...");
+                Log.Information("Getting component count...");
 
                 // Perform direct component query with state='monitored' filter
                 var countRequest = MonitorQueryBuilders.AllComponentsWithMetrics(
@@ -296,7 +296,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
                     var response = await _client.QueryComponentsAsync(request, cancellationToken).ConfigureAwait(false);
                     components.AddRange(response.Features);
 
-                    Log.Debug("Retrieved {Count} components in this page", response.Features.Count);
+                    Log.Information("Retrieved {Count} components in this page", response.Features.Count);
 
                     if(total == 0)
                     {
@@ -304,13 +304,13 @@ namespace ArcGISMonitorExcelReporterLib.Client
                     }
                 }
 
-                Log.Debug("Completed fetching {Total} components", components.Count);
+                Log.Information("Completed fetching {Total} components", components.Count);
                 return components;
             }
             else
             {
                 // Query specific collection logic
-                Log.Debug("Getting component count for {Collection}...", collectionName);
+                Log.Information("Getting component count for {Collection}...", collectionName);
 
                 var countRequest = MonitorQueryBuilders.CollectionAllComponentsWithMetrics(
                     collectionName: collectionName,
@@ -324,13 +324,13 @@ namespace ArcGISMonitorExcelReporterLib.Client
                     cancellationToken).ConfigureAwait(false);
                 var total = countResponse.Features.Sum(f => f.Components?.Count ?? 0);
 
-                Log.Debug("Total components to retrieve : {Total}", total);
+                Log.Information("Total components to retrieve : {Total}", total);
 
                 var components = new List<ComponentFeature>(Math.Max(total, 0));
 
                 for(var offset = 0; offset < Math.Max(total, 1); offset += pageSize)
                 {
-                    Log.Debug("Fetching components page : offset {Offset}, size {PageSize}", offset, pageSize);
+                    Log.Information("Fetching components page : offset {Offset}, size {PageSize}", offset, pageSize);
 
                     var request = MonitorQueryBuilders.CollectionAllComponentsWithMetrics(
                         collectionName,
@@ -346,7 +346,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
                     var pageCount = response.Features.SelectMany(f => f.Components.Items).Count();
                     components.AddRange(response.Features.SelectMany(f => f.Components.Items));
 
-                    Log.Debug("Retrieved {Count} components in this page", pageCount);
+                    Log.Information("Retrieved {Count} components in this page", pageCount);
 
                     if(total == 0)
                     {
@@ -354,7 +354,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
                     }
                 }
 
-                Log.Debug("Completed fetching {Total} components", components.Count);
+                Log.Information("Completed fetching {Total} components", components.Count);
 
                 return components;
             }
@@ -459,7 +459,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
             int pageSize = 100,
             CancellationToken cancellationToken = default)
         {
-            Log.Debug("Getting component count for {Collection}/{Type} with metric filter: {Metric}...",
+            Log.Information("Getting component count for {Collection}/{Type} with metric filter: {Metric}...",
                 collectionName, componentType, metricNameLike);
 
             var countRequest = MonitorQueryBuilders.CollectionComponentsByMetricName(
@@ -468,13 +468,13 @@ namespace ArcGISMonitorExcelReporterLib.Client
             var countResponse = await _client.QueryCollectionsAsync(countRequest, cancellationToken).ConfigureAwait(false);
             var total = countResponse.Features.FirstOrDefault()?.Components.Count ?? 0;
 
-            Log.Debug("Total components to retrieve: {Total}", total);
+            Log.Information("Total components to retrieve: {Total}", total);
 
             var components = new List<ComponentFeature>(Math.Max(total, 0));
 
             for(var offset = 0; offset < Math.Max(total, 1); offset += pageSize)
             {
-                Log.Debug("Fetching components page: offset {Offset}, size {PageSize}", offset, pageSize);
+                Log.Information("Fetching components page: offset {Offset}, size {PageSize}", offset, pageSize);
 
                 var request = MonitorQueryBuilders.CollectionComponentsByMetricName(
                     collectionName, componentType, metricNameLike, fromUtc, toUtc, false, pageSize, offset);
@@ -484,7 +484,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
 
                 components.AddRange(response.Features.SelectMany(f => f.Components.Items));
 
-                Log.Debug("Retrieved {Count} components in this page", pageCount);
+                Log.Information("Retrieved {Count} components in this page", pageCount);
 
                 if(total == 0)
                 {
@@ -492,7 +492,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
                 }
             }
 
-            Log.Debug("Completed fetching {Total} components with metric stats", components.Count);
+            Log.Information("Completed fetching {Total} components with metric stats", components.Count);
 
             return components;
         }
@@ -570,12 +570,12 @@ namespace ArcGISMonitorExcelReporterLib.Client
             CancellationToken cancellationToken = default)
         {
             var idList = metricIds.ToList();
-            Log.Debug("Fetching time series for {Count} metrics with bucket: {Bucket}, batch size: {BatchSize}",
+            Log.Information("Fetching time series for {Count} metrics with bucket: {Bucket}, batch size: {BatchSize}",
                 idList.Count, bucket, batchSize);
 
             if(idList.Count == 0)
             {
-                Log.Debug("No metric IDs provided for time series query");
+                Log.Information("No metric IDs provided for time series query");
                 return new QueryResponse<MetricFeature>
                 {
                     Features = [],
@@ -591,7 +591,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
                 var skip = batchIndex * batchSize;
                 var batchIds = idList.Skip(skip).Take(batchSize).ToList();
 
-                Log.Debug("Processing batch {Current}/{Total}: {Count} metric IDs (starting at index {Skip})",
+                Log.Information("Processing batch {Current}/{Total}: {Count} metric IDs (starting at index {Skip})",
                     batchIndex + 1, totalBatches, batchIds.Count, skip);
 
                 var request = MonitorQueryBuilders.MetricsTimeSeries(batchIds, fromUtc, toUtc, bucket);
@@ -599,11 +599,11 @@ namespace ArcGISMonitorExcelReporterLib.Client
 
                 allFeatures.AddRange(response.Features);
 
-                Log.Debug("Retrieved {Count} metric features from batch {Current}/{Total}",
+                Log.Information("Retrieved {Count} metric features from batch {Current}/{Total}",
                     response.Features.Count, batchIndex + 1, totalBatches);
             }
 
-            Log.Debug("Completed fetching time series data for {Total} metrics across {Batches} batch(es). Total features: {Features}",
+            Log.Information("Completed fetching time series data for {Total} metrics across {Batches} batch(es). Total features: {Features}",
                 idList.Count, totalBatches, allFeatures.Count);
 
             return new QueryResponse<MetricFeature>
@@ -634,12 +634,12 @@ namespace ArcGISMonitorExcelReporterLib.Client
         {
             try
             {
-                Log.Debug("Fetching monitoring information from /monitoring endpoint");
+                Log.Information("Fetching monitoring information from /monitoring endpoint");
                 var info = await _client.GetAsync<MonitoringInfo>("monitoring", requiresBearer: true, cancellationToken).ConfigureAwait(false);
 
                 if(info != null && !string.IsNullOrEmpty(info.Version))
                 {
-                    Log.Debug("Successfully retrieved monitoring information. Version: {Version}, Resources: {ResourceCount}", 
+                    Log.Information("Successfully retrieved monitoring information. Version: {Version}, Resources: {ResourceCount}", 
                         info.Version, info.Resources?.Count ?? 0);
                 }
 
@@ -647,7 +647,7 @@ namespace ArcGISMonitorExcelReporterLib.Client
             }
             catch(Exception ex)
             {
-                Log.Debug(ex, "Error retrieving monitoring information from /monitoring endpoint");
+                Log.Information(ex, "Error retrieving monitoring information from /monitoring endpoint");
                 return null;
             }
         }
@@ -725,14 +725,14 @@ namespace ArcGISMonitorExcelReporterLib.Client
                 }
                 else
                 {
-                    Log.Debug("No component types found in monitoring/components endpoint");
+                    Log.Information("No component types found in monitoring/components endpoint");
                 }
 
                 return componentTypes;
             }
             catch(Exception ex)
             {
-                Log.Debug(ex, "Error retrieving component types from /monitoring/components");
+                Log.Information(ex, "Error retrieving component types from /monitoring/components");
                 return null;
             }
         }
