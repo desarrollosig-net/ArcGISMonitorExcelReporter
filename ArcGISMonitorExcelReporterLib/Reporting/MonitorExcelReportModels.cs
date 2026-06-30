@@ -100,6 +100,13 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// Gets or sets the maximum number of metric IDs to fetch time series for. Default is null (unlimited).
         /// </summary>
         public int? MaxMetricIdsForTimeSeries { get; set; } = null;
+
+        /// <summary>
+        /// Gets or sets the maximum number of metric columns per time series sheet.
+        /// Columns are selected ordered by P95 descending, then by maximum value descending.
+        /// Default is 20.
+        /// </summary>
+        public int MaxTimeSeriesColumns { get; set; } = 20;
     }
 
     /// <summary>
@@ -177,6 +184,12 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         /// Gets or sets the downsampled metric time series rows (multi-point, from the dedicated time series API).
         /// </summary>
         public List<MetricDataReportRow> TimeSeriesMetricData { get; set; } = [];
+
+        /// <summary>
+        /// Gets or sets the maximum number of metric columns per time series sheet.
+        /// Columns are selected ordered by P95 descending, then by maximum value descending.
+        /// </summary>
+        public int MaxTimeSeriesColumns { get; set; } = 20;
 
         /// <summary>
         /// Gets or sets the alert rows.

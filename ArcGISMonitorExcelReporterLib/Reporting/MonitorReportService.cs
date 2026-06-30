@@ -198,7 +198,8 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
                 PastDays = request.PastDays,
                 PastHours = request.PastHours,
                 FromUtc = request.FromUtc,
-                ToUtc = request.ToUtc
+                ToUtc = request.ToUtc,
+                MaxTimeSeriesColumns = request.MaxTimeSeriesColumns
             };
 
             foreach(var collectionName in collectionsToQuery)

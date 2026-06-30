@@ -46,7 +46,6 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
 #pragma warning disable S1192
         private const string UnknownValue = "Unknown";
 #pragma warning restore S1192
-        private const int MaxTimeSeriesColumns = 100;
 
         /// <summary>
         /// Saves an ArcGIS Monitor report to an Excel (.xlsx) file.
@@ -935,6 +934,53 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
         }
 
         /// <summary>
+        /// Selects the top <paramref name="limit"/> metrics ordered by P95 descending,
+        /// falling back to maximum value descending for metrics without P95 data.
+        /// </summary>
+        /// <param name="metrics">Full list of metric rows for the current sheet (may contain duplicates by MetricId).</param>
+        /// <param name="metricData">Aggregated period statistics used to rank metrics.</param>
+        /// <param name="limit">Maximum number of unique metric IDs to keep.</param>
+        /// <returns>
+        /// A tuple with the filtered metric list and the original number of unique metric IDs
+        /// (before filtering).
+        /// </returns>
+        private static (List<MetricReportRow> Metrics, int TotalUniqueCount) SelectTopMetricsByP95(
+            List<MetricReportRow> metrics,
+            IReadOnlyCollection<MetricDataReportRow> metricData,
+            int limit)
+        {
+            var uniqueIds = metrics.Select(m => m.MetricId).Distinct().ToList();
+            if(uniqueIds.Count <= limit)
+            {
+                return (metrics, uniqueIds.Count);
+            }
+
+            // Build lookup: metricId -> (P95, Max) from aggregated period statistics
+            var statsById = metricData
+                .Where(md => md.MetricId > 0)
+                .GroupBy(md => md.MetricId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (P95: g.Max(d => d.Percentile95Value), Max: g.Max(d => d.MaxValue)));
+
+            // Metrics with P95: ordered by P95 descending
+            var withP95 = uniqueIds
+                .Where(id => statsById.TryGetValue(id, out var s) && s.P95.HasValue)
+                .OrderByDescending(id => statsById[id].P95!.Value)
+                .ToList();
+
+            // Metrics without P95: ordered by Max descending
+            var withP95Set = withP95.ToHashSet();
+            var withoutP95 = uniqueIds
+                .Where(id => !withP95Set.Contains(id))
+                .OrderByDescending(id => statsById.TryGetValue(id, out var s) ? s.Max ?? 0.0 : 0.0)
+                .ToList();
+
+            var selectedIds = withP95.Concat(withoutP95).Take(limit).ToHashSet();
+            return ([.. metrics.Where(m => selectedIds.Contains(m.MetricId))], uniqueIds.Count);
+        }
+
+        /// <summary>
         /// Writes a metric time series sheet with max values grouped by the selected observed_at bucket interval.
         /// </summary>
         private static void WriteMetricTimeSeriesSheet(
@@ -956,30 +1002,29 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
             {
                 var row = 2;
 
-                // Title (metricName is already normalized for process metrics, keep spaces)
+                // Apply top-N selection by P95 (fallback to Max) before writing anything
+                var maxColumns = report.MaxTimeSeriesColumns > 0 ? report.MaxTimeSeriesColumns : 20;
+                var (selectedMetrics, totalUniqueCount) = SelectTopMetricsByP95(metrics, report.MetricData, maxColumns);
+                metrics = selectedMetrics;
+                var wasLimited = totalUniqueCount > maxColumns;
+
+                // Title
                 var bucketLabel = FormatBucketLabel(report.MetricDataBucket);
-                ws.Cell(row, 1).Value = $"Time Series: {metricName} ({componentType}) - Max every {bucketLabel}";
+                var title = wasLimited
+                    ? $"Time Series: {metricName} ({componentType}) - Top {maxColumns} of {totalUniqueCount} by P95 - Max every {bucketLabel}"
+                    : $"Time Series: {metricName} ({componentType}) - Max every {bucketLabel}";
+                ws.Cell(row, 1).Value = title;
                 ws.Cell(row, 1).Style.Font.Bold = true;
                 ws.Cell(row, 1).Style.Font.FontSize = 16;
                 ws.Cell(row, 1).Style.Fill.BackgroundColor = XLColor.FromArgb(68, 114, 196);
                 ws.Cell(row, 1).Style.Font.FontColor = XLColor.White;
                 row += 2;
 
-                // Select top MaxTimeSeriesColumns metrics ranked by MaxValue from aggregated MetricData
-                var allMetricIds = metrics.Select(m => m.MetricId).ToHashSet();
-                if(allMetricIds.Count > MaxTimeSeriesColumns)
+                if(wasLimited)
                 {
-                    var topMetricIds = report.MetricData
-                        .Where(md => allMetricIds.Contains(md.MetricId) && md.MaxValue.HasValue)
-                        .OrderByDescending(md => md.MaxValue!.Value)
-                        .Take(MaxTimeSeriesColumns)
-                        .Select(md => md.MetricId)
-                        .ToHashSet();
-
                     Log.Warning(
-                        "Time series for '{MetricName}' in '{ComponentType}': limiting to top {Max} of {Total} metrics by MaxValue.",
-                        metricName, componentType, MaxTimeSeriesColumns, allMetricIds.Count);
-                    metrics = [.. metrics.Where(m => topMetricIds.Contains(m.MetricId))];
+                        "Time series for '{MetricName}' in '{ComponentType}': limiting to top {Max} of {Total} metrics by P95/Max.",
+                        metricName, componentType, maxColumns, totalUniqueCount);
                 }
 
                 // Get time series data for this metric
