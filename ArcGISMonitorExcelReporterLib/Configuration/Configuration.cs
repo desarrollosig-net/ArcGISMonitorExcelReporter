@@ -218,7 +218,8 @@ namespace ArcGISMonitorExcelReporterLib.Configuration
                 PageSize = Report.PageSize,
                 MetricBucket = Report.MetricBucket,
                 IncludeMetricTimeSeries = Report.IncludeMetricTimeSeries,
-                MaxMetricIdsForTimeSeries = Report.MaxMetricIdsForTimeSeries
+                MaxMetricIdsForTimeSeries = Report.MaxMetricIdsForTimeSeries,
+                MaxTimeSeriesColumns = Report.MaxTimeSeriesColumns
             };
         }
     }
@@ -498,6 +499,14 @@ namespace ArcGISMonitorExcelReporterLib.Configuration
         /// </summary>
         [JsonPropertyName("max_metric_ids_for_time_series")]
         public int? MaxMetricIdsForTimeSeries { get; set; } = null;
+
+        /// <summary>
+        /// Gets or sets the maximum number of metric columns per time series sheet.
+        /// Columns are selected ordered by P95 descending, then by maximum value descending.
+        /// Default is 20.
+        /// </summary>
+        [JsonPropertyName("max_time_series_columns")]
+        public int MaxTimeSeriesColumns { get; set; } = 20;
     }
 
     /// <summary>
