@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Email delivery of reports
 - Report caching for improved performance
 
-## [2025.01.27.1] - 2025-01-27
+## [2026.06.30.13] - 2026-06-30
 
 ### Added
 - ✨ **BuildNumber Persistence Fix** - Resolved issue where build numbers would duplicate when compiling multiple platforms (Windows/Linux) in the same GitHub Actions workflow
@@ -72,7 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `LastDatePrefix.txt` - Last build date prefix (git-ignored)
 - `BuildNumberFromCI.txt` - CI marker file (temporary, git-ignored)
 
-## [2025.01.20.5] - 2025-01-20
+## [2026.06.14.3] - 2026-06-14
 
 ### Added
 - Initial public release
@@ -105,22 +105,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Version Format Legend
 
 ```
-2025.01.27.1
-└─┬─ Year (2025)
-  └─┬─ Month (01)
-	└─┬─ Day (27)
-	  └─ Build Number (1)
+2026.06.30.13
+└─┬─ Year (2026)
+  └─┬─ Month (06)
+	└─┬─ Day (30)
+	  └─ Build Number (13)
 ```
 
 - **Resets daily** - Build number resets to 1 each day
 - **GitHub Actions** - Uses `github.run_number` for unique, consistent versioning
-- **Release naming** - GitHub tags follow format `v2025.01.27.1`
-
-## Release Timeline
-
-- **2025-01-20** - Initial public release (v2025.01.20.1+)
-- **2025-01-27** - BuildNumber persistence fix and documentation enhancement
-- **Future** - Additional features and platform support planned
+- **Release naming** - GitHub tags follow format `v2026.06.30.13`
 
 ## Compatibility
 
@@ -153,29 +147,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 None currently known. Please report issues on [GitHub Issues](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/issues).
 
-## Roadmap
-
-### Q1 2025
-- [ ] Performance optimization for large datasets
-- [ ] Support for CSV export format
-- [ ] Batch report generation capabilities
-
-### Q2 2025
-- [ ] Web API for remote report generation
-- [ ] Scheduled report execution
-- [ ] Email delivery of reports
-- [ ] Report caching system
-
-### Q3 2025
-- [ ] Custom report templates
-- [ ] Azure integration
-- [ ] PowerBI connector
-
-### Q4 2025
-- [ ] Dashboard generation
-- [ ] Real-time monitoring integration
-- [ ] Advanced analytics
-
 ## Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
@@ -194,6 +165,6 @@ For support, please:
 
 ---
 
-**Last Updated:** January 27, 2025  
+**Last Updated:** June 30, 2026  
 **Project Status:** Active Development  
-**Latest Version:** 2025.01.27.1
+**Latest Version:** 2026.06.30.13

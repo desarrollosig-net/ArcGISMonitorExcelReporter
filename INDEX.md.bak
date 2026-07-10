@@ -1,0 +1,235 @@
+﻿# DocumentaciÃ³n - ArcGIS Monitor Excel Reporter
+
+## ðŸ“š Ãndice de DocumentaciÃ³n
+
+Esta es la documentaciÃ³n central del proyecto **ArcGIS Monitor Excel Reporter**. Selecciona el documento que necesitas segÃºn tu rol o necesidad.
+
+---
+
+## ðŸš€ Para Empezar
+
+### ðŸ‘¤ **Usuario Final**
+Quieres usar la aplicaciÃ³n para generar reportes de Excel
+
+- **Inicio RÃ¡pido:** [README.md](README.md#quick-start) - GuÃ­as paso a paso
+- **ConfiguraciÃ³n:** [README.md](README.md#configuration-reference) - Referencia completa de parÃ¡metros
+- **Ejemplos:** [config.json.example](config.json.example) - Archivo de configuraciÃ³n de ejemplo
+- **SoluciÃ³n de Problemas:** [README.md](README.md#troubleshooting) - Problemas comunes y soluciones
+
+---
+
+## ðŸ’» Para Desarrolladores
+
+### ðŸ› ï¸ **Contribuir al Proyecto**
+Quieres aÃ±adir features o corregir bugs
+
+1. **Primero lee:** [CONTRIBUTING.md](CONTRIBUTING.md) - GuÃ­a completa de contribuciÃ³n
+2. **Clona el repo:**
+   ```bash
+   git clone https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter.git
+   cd ArcGISMonitorExcelReporter
+   ```
+3. **Setup Local:**
+   - [CONTRIBUTING.md#development-setup](CONTRIBUTING.md#development-setup) - Configurar entorno
+   - [CONTRIBUTING.md#styleguides](CONTRIBUTING.md#styleguides) - Estilo de cÃ³digo
+4. **EnvÃ­a PR:**
+   - [CONTRIBUTING.md#pull-requests](CONTRIBUTING.md#pull-requests) - Proceso de PR
+
+### ðŸ“– **DocumentaciÃ³n TÃ©cnica**
+Necesitas entender la arquitectura interna
+
+- **Arquitectura:** [README.md](README.md#project-structure) - Estructura de proyectos
+- **API Library:** XML documentation en `ArcGISMonitorExcelReporterLib/`
+- **Samples:** [ArcGISMonitorExcelReporterLib/Samples/ExampleUsage.cs](ArcGISMonitorExcelReporterLib/Samples/ExampleUsage.cs)
+- **Versioning:** [BUILD_NUMBER_CI_FIX.md](BUILD_NUMBER_CI_FIX.md) - ExplicaciÃ³n del sistema de versiones
+- **CI/CD:** [.github/workflows/release.yml](.github/workflows/release.yml) - GitHub Actions workflow
+
+---
+
+## ðŸ“‹ Referencia RÃ¡pida de Documentos
+
+| Documento | PropÃ³sito | Audiencia | TamaÃ±o |
+|-----------|----------|-----------|--------|
+| **[README.md](README.md)** | DocumentaciÃ³n oficial completa en inglÃ©s | Todos | 13 KB |
+| **[SUMMARY.md](SUMMARY.md)** | Resumen ejecutivo en espaÃ±ol | Gerentes, AnÃ¡lisis | 12 KB |
+| **[CHANGELOG.md](CHANGELOG.md)** | Historial de cambios y versiones | Desarrolladores, Usuarios | 7 KB |
+| **[CONTRIBUTING.md](CONTRIBUTING.md)** | GuÃ­a para colaboradores | Desarrolladores | 11 KB |
+| **[LICENSE](LICENSE)** | Licencia MIT | Legal | 1 KB |
+| **[BUILD_NUMBER_CI_FIX.md](BUILD_NUMBER_CI_FIX.md)** | Detalle tÃ©cnico del fix de versioning | DevOps, Developers | Variable |
+| **[config.json.example](config.json.example)** | Plantilla de configuraciÃ³n | Usuarios, Developers | 1 KB |
+
+---
+
+## ðŸŽ¯ Casos de Uso por Rol
+
+### ðŸ‘¨â€ðŸ’¼ **Project Manager / Stakeholder**
+```
+Leo                    Lee primero
+   â†“
+[SUMMARY.md]           Entiendo quÃ© es y para quÃ© sirve
+   â†“
+[README.md] (Features) Conozco las capacidades principales
+   â†“
+[CHANGELOG.md]         Veo el progreso del proyecto
+```
+
+### ðŸ‘¨â€ðŸ’» **Usuario / Operador**
+```
+Necesito generar reportes
+   â†“
+[README.md] Quick Start        Pasos para empezar
+   â†“
+[config.json.example]          Creo mi configuraciÃ³n
+   â†“
+[README.md] Troubleshooting    Resuelvo problemas
+```
+
+### ðŸ‘¨â€ðŸ”¬ **Desarrollador / Contribuidor**
+```
+Quiero contribuir
+   â†“
+[CONTRIBUTING.md]              Setup desarrollo
+   â†“
+[README.md] Project Structure  Entiendo arquitectura
+   â†“
+CÃ³digo con XML Docs            Leo implementation
+   â†“
+[CONTRIBUTING.md] PR Process   EnvÃ­o cambios
+```
+
+### ðŸš€ **DevOps / Release Manager**
+```
+Necesito entender versioning
+   â†“
+[BUILD_NUMBER_CI_FIX.md]       Sistema de build numbers
+   â†“
+[.github/workflows/release.yml] Workflow CI/CD
+   â†“
+[CHANGELOG.md]                 Historial de releases
+```
+
+---
+
+## ðŸ“Š Estructura del Repositorio
+
+```
+ArcGISMonitorExcelReporter/
+â”œâ”€â”€ ðŸ“‹ DocumentaciÃ³n (en raiz)
+â”‚   â”œâ”€â”€ README.md                      â† LEER PRIMERO (en inglÃ©s)
+â”‚   â”œâ”€â”€ SUMMARY.md                     â† Resumen exejutivo (en espaÃ±ol)
+â”‚   â”œâ”€â”€ CHANGELOG.md                   â† Historial de versiones
+â”‚   â”œâ”€â”€ CONTRIBUTING.md                â† GuÃ­a para contribuir
+â”‚   â”œâ”€â”€ LICENSE                        â† Licencia MIT
+â”‚   â”œâ”€â”€ BUILD_NUMBER_CI_FIX.md         â† Detalle tÃ©cnico
+â”‚   â”œâ”€â”€ INDEX.md                       â† Este archivo
+â”‚   â””â”€â”€ config.json.example            â† Plantilla de config
+â”‚
+â”œâ”€â”€ ðŸ“¦ CÃ³digo Fuente
+â”‚   â”œâ”€â”€ ArcGISMonitorExcelReporterLib/   â† Biblioteca principal
+â”‚   â”‚   â”œâ”€â”€ ArcGISMonitorExcelReporter.cs
+â”‚   â”‚   â”œâ”€â”€ Client/                      â† API Client
+â”‚   â”‚   â”œâ”€â”€ Configuration/               â† Config models
+â”‚   â”‚   â”œâ”€â”€ Models/                      â† Domain models
+â”‚   â”‚   â”œâ”€â”€ Reporting/                   â† Report generation
+â”‚   â”‚   â””â”€â”€ Samples/                     â† Ejemplos con XML Docs
+â”‚   â”œâ”€â”€ ArcGISMonitorExcelReporter/      â† AplicaciÃ³n console
+â”‚   â”‚   â”œâ”€â”€ Program.cs
+â”‚   â”‚   â”œâ”€â”€ VersionInfo.targets          â† MSBuild versioning
+â”‚   â”‚   â””â”€â”€ GenerateVersionFile.ps1
+â”‚   â””â”€â”€ *.Tests/                         â† Proyectos de tests
+â”‚
+â”œâ”€â”€ ðŸ”§ ConfiguraciÃ³n
+â”‚   â”œâ”€â”€ .github/
+â”‚   â”‚   â””â”€â”€ workflows/
+â”‚   â”‚       â””â”€â”€ release.yml              â† CI/CD workflow
+â”‚   â”œâ”€â”€ .gitignore                       â† Git ignore rules
+â”‚   â”œâ”€â”€ ArcGISMonitorExcelReporter.slnx â† SoluciÃ³n
+â”‚   â””â”€â”€ global.json                      â† .NET version
+â”‚
+â””â”€â”€ ðŸ“„ Otros
+	â”œâ”€â”€ BUILD_NUMBER.txt                 â† Auto-generated
+	â”œâ”€â”€ LAST_DATE_PREFIX.txt            â† Auto-generated
+	â””â”€â”€ BuildNumberFromCI.txt            â† Temporal (CI)
+```
+
+---
+
+## ðŸ” BÃºsqueda RÃ¡pida
+
+### Pregunta: "Â¿CÃ³mo configuro la aplicaciÃ³n?"
+â†’ Ver [README.md#quick-start](README.md#quick-start) y [config.json.example](config.json.example)
+
+### Pregunta: "Â¿CÃ³mo contribuyo al proyecto?"
+â†’ Ver [CONTRIBUTING.md](CONTRIBUTING.md)
+
+### Pregunta: "Â¿CuÃ¡les son las novedades en la Ãºltima versiÃ³n?"
+â†’ Ver [CHANGELOG.md](CHANGELOG.md)
+
+### Pregunta: "Â¿Por quÃ© el build number no se duplica en CI?"
+â†’ Ver [BUILD_NUMBER_CI_FIX.md](BUILD_NUMBER_CI_FIX.md)
+
+### Pregunta: "Â¿DÃ³nde estÃ¡ el acuerdo de licencia?"
+â†’ Ver [LICENSE](LICENSE)
+
+### Pregunta: "Â¿CÃ³mo resuelvo problemas?"
+â†’ Ver [README.md#troubleshooting](README.md#troubleshooting)
+
+---
+
+## ðŸŒ Enlaces Importantes
+
+### Sitio del Proyecto
+- ðŸ™ [GitHub Repository](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter)
+- ðŸ“¦ [NuGet Package](https://www.nuget.org/) (pendiente)
+- ðŸ“– [DocumentaciÃ³n Oficial](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/docs)
+
+### ComunicaciÃ³n
+- ðŸ› [Reportar Issues](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/issues)
+- ðŸ’¬ [Discussions](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/discussions)
+- ðŸ“§ [Contact](https://github.com/desarrollosig-net)
+
+### Recursos Externos
+- [.NET 8 Documentation](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-8)
+- [ArcGIS Monitor Documentation](https://doc.safe.com/arcgis-monitor/)
+- [ClosedXML GitHub](https://github.com/ClosedXML/ClosedXML)
+- [Serilog GitHub](https://github.com/serilog/serilog)
+
+---
+
+## âœ… Checklist de DocumentaciÃ³n
+
+- âœ“ README.md completo en inglÃ©s
+- âœ“ CHANGELOG.md con historial
+- âœ“ CONTRIBUTING.md para colaboradores
+- âœ“ SUMMARY.md en espaÃ±ol
+- âœ“ LICENSE MIT
+- âœ“ config.json.example
+- âœ“ BUILD_NUMBER_CI_FIX.md (tÃ©cnico)
+- âœ“ INDEX.md (este archivo)
+- âœ“ XML Documentation en code
+- âœ“ Examples en Samples/
+
+---
+
+## ðŸ“ž Soporte
+
+Â¿No encuentras lo que buscas?
+
+1. **Busca** en [GitHub Issues](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/issues)
+2. **Pregunta** en [GitHub Discussions](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/discussions)
+3. **Lee** todo el README.md - probablemente estÃ© ahÃ­
+4. **Contribuye** una mejora de documentaciÃ³n
+
+---
+
+## ðŸ“… InformaciÃ³n del Documento
+
+- **Creado:** Enero 27, 2025
+- **Ãšltima ActualizaciÃ³n:** Enero 27, 2025
+- **VersiÃ³n:** 1.0
+- **Mantenedor:** DesarrolloSIG
+
+---
+
+**Â¡Gracias por tu interÃ©s en ArcGIS Monitor Excel Reporter!** ðŸš€
+

@@ -1,194 +1,194 @@
-# Documentación - ArcGIS Monitor Excel Reporter
+# Documentation - ArcGIS Monitor Excel Reporter
 
-## 📚 Índice de Documentación
+## 📚 Documentation Index
 
-Esta es la documentación central del proyecto **ArcGIS Monitor Excel Reporter**. Selecciona el documento que necesitas según tu rol o necesidad.
-
----
-
-## 🚀 Para Empezar
-
-### 👤 **Usuario Final**
-Quieres usar la aplicación para generar reportes de Excel
-
-- **Inicio Rápido:** [README.md](README.md#quick-start) - Guías paso a paso
-- **Configuración:** [README.md](README.md#configuration-reference) - Referencia completa de parámetros
-- **Ejemplos:** [config.json.example](config.json.example) - Archivo de configuración de ejemplo
-- **Solución de Problemas:** [README.md](README.md#troubleshooting) - Problemas comunes y soluciones
+This is the central documentation for the **ArcGIS Monitor Excel Reporter** project. Select the document you need based on your role or requirement.
 
 ---
 
-## 💻 Para Desarrolladores
+## 🚀 Getting Started
 
-### 🛠️ **Contribuir al Proyecto**
-Quieres añadir features o corregir bugs
+### 👤 **End User**
+You want to use the application to generate Excel reports
 
-1. **Primero lee:** [CONTRIBUTING.md](CONTRIBUTING.md) - Guía completa de contribución
-2. **Clona el repo:**
+- **Quick Start:** [README.md](README.md#quick-start) - Step-by-step guides
+- **Configuration:** [README.md](README.md#configuration-reference) - Complete parameter reference
+- **Examples:** [config.json.example](config.json.example) - Sample configuration file
+- **Troubleshooting:** [README.md](README.md#troubleshooting) - Common issues and solutions
+
+---
+
+## 💻 For Developers
+
+### 🛠️ **Contributing to the Project**
+You want to add features or fix bugs
+
+1. **Read first:** [CONTRIBUTING.md](CONTRIBUTING.md) - Complete contribution guide
+2. **Clone the repo:**
    ```bash
    git clone https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter.git
    cd ArcGISMonitorExcelReporter
    ```
-3. **Setup Local:**
-   - [CONTRIBUTING.md#development-setup](CONTRIBUTING.md#development-setup) - Configurar entorno
-   - [CONTRIBUTING.md#styleguides](CONTRIBUTING.md#styleguides) - Estilo de código
-4. **Envía PR:**
-   - [CONTRIBUTING.md#pull-requests](CONTRIBUTING.md#pull-requests) - Proceso de PR
+3. **Local Setup:**
+   - [CONTRIBUTING.md#development-setup](CONTRIBUTING.md#development-setup) - Configure environment
+   - [CONTRIBUTING.md#styleguides](CONTRIBUTING.md#styleguides) - Code style
+4. **Submit PR:**
+   - [CONTRIBUTING.md#pull-requests](CONTRIBUTING.md#pull-requests) - PR process
 
-### 📖 **Documentación Técnica**
-Necesitas entender la arquitectura interna
+### 📖 **Technical Documentation**
+You need to understand the internal architecture
 
-- **Arquitectura:** [README.md](README.md#project-structure) - Estructura de proyectos
-- **API Library:** XML documentation en `ArcGISMonitorExcelReporterLib/`
+- **Architecture:** [README.md](README.md#project-structure) - Project structure
+- **API Library:** XML documentation in `ArcGISMonitorExcelReporterLib/`
 - **Samples:** [ArcGISMonitorExcelReporterLib/Samples/ExampleUsage.cs](ArcGISMonitorExcelReporterLib/Samples/ExampleUsage.cs)
-- **Versioning:** [BUILD_NUMBER_CI_FIX.md](BUILD_NUMBER_CI_FIX.md) - Explicación del sistema de versiones
+- **Versioning:** [BUILD_NUMBER_CI_FIX.md](BUILD_NUMBER_CI_FIX.md) - Versioning system explanation
 - **CI/CD:** [.github/workflows/release.yml](.github/workflows/release.yml) - GitHub Actions workflow
 
 ---
 
-## 📋 Referencia Rápida de Documentos
+## 📋 Quick Document Reference
 
-| Documento | Propósito | Audiencia | Tamaño |
-|-----------|----------|-----------|--------|
-| **[README.md](README.md)** | Documentación oficial completa en inglés | Todos | 13 KB |
-| **[SUMMARY.md](SUMMARY.md)** | Resumen ejecutivo en español | Gerentes, Análisis | 12 KB |
-| **[CHANGELOG.md](CHANGELOG.md)** | Historial de cambios y versiones | Desarrolladores, Usuarios | 7 KB |
-| **[CONTRIBUTING.md](CONTRIBUTING.md)** | Guía para colaboradores | Desarrolladores | 11 KB |
-| **[LICENSE](LICENSE)** | Licencia MIT | Legal | 1 KB |
-| **[BUILD_NUMBER_CI_FIX.md](BUILD_NUMBER_CI_FIX.md)** | Detalle técnico del fix de versioning | DevOps, Developers | Variable |
-| **[config.json.example](config.json.example)** | Plantilla de configuración | Usuarios, Developers | 1 KB |
+| Document | Purpose | Audience | Size |
+|----------|---------|----------|------|
+| **[README.md](README.md)** | Complete official documentation in English | Everyone | 13 KB |
+| **[SUMMARY.md](SUMMARY.md)** | Executive summary in Spanish | Managers, Analysts | 12 KB |
+| **[CHANGELOG.md](CHANGELOG.md)** | Change history and versions | Developers, Users | 7 KB |
+| **[CONTRIBUTING.md](CONTRIBUTING.md)** | Guide for contributors | Developers | 11 KB |
+| **[LICENSE](LICENSE)** | MIT License | Legal | 1 KB |
+| **[BUILD_NUMBER_CI_FIX.md](BUILD_NUMBER_CI_FIX.md)** | Technical detail of the versioning fix | DevOps, Developers | Variable |
+| **[config.json.example](config.json.example)** | Configuration template | Users, Developers | 1 KB |
 
 ---
 
-## 🎯 Casos de Uso por Rol
+## 🎯 Use Cases by Role
 
 ### 👨‍💼 **Project Manager / Stakeholder**
 ```
-Leo                    Lee primero
+I want to read          Read first
    ↓
-[SUMMARY.md]           Entiendo qué es y para qué sirve
+[SUMMARY.md]           Understand what it is and what it does
    ↓
-[README.md] (Features) Conozco las capacidades principales
+[README.md] (Features) Learn the main capabilities
    ↓
-[CHANGELOG.md]         Veo el progreso del proyecto
+[CHANGELOG.md]         See project progress
 ```
 
-### 👨‍💻 **Usuario / Operador**
+### 👨‍💻 **User / Operator**
 ```
-Necesito generar reportes
+I need to generate reports
    ↓
-[README.md] Quick Start        Pasos para empezar
+[README.md] Quick Start        Steps to get started
    ↓
-[config.json.example]          Creo mi configuración
+[config.json.example]          Create my configuration
    ↓
-[README.md] Troubleshooting    Resuelvo problemas
+[README.md] Troubleshooting    Resolve issues
 ```
 
-### 👨‍🔬 **Desarrollador / Contribuidor**
+### 👨‍🔬 **Developer / Contributor**
 ```
-Quiero contribuir
+I want to contribute
    ↓
-[CONTRIBUTING.md]              Setup desarrollo
+[CONTRIBUTING.md]              Development setup
    ↓
-[README.md] Project Structure  Entiendo arquitectura
+[README.md] Project Structure  Understand architecture
    ↓
-Código con XML Docs            Leo implementation
+Code with XML Docs             Read implementation
    ↓
-[CONTRIBUTING.md] PR Process   Envío cambios
+[CONTRIBUTING.md] PR Process   Submit changes
 ```
 
 ### 🚀 **DevOps / Release Manager**
 ```
-Necesito entender versioning
+I need to understand versioning
    ↓
-[BUILD_NUMBER_CI_FIX.md]       Sistema de build numbers
+[BUILD_NUMBER_CI_FIX.md]       Build number system
    ↓
-[.github/workflows/release.yml] Workflow CI/CD
+[.github/workflows/release.yml] CI/CD Workflow
    ↓
-[CHANGELOG.md]                 Historial de releases
+[CHANGELOG.md]                 Release history
 ```
 
 ---
 
-## 📊 Estructura del Repositorio
+## 📊 Repository Structure
 
 ```
 ArcGISMonitorExcelReporter/
-├── 📋 Documentación (en raiz)
-│   ├── README.md                      ← LEER PRIMERO (en inglés)
-│   ├── SUMMARY.md                     ← Resumen exejutivo (en español)
-│   ├── CHANGELOG.md                   ← Historial de versiones
-│   ├── CONTRIBUTING.md                ← Guía para contribuir
-│   ├── LICENSE                        ← Licencia MIT
-│   ├── BUILD_NUMBER_CI_FIX.md         ← Detalle técnico
-│   ├── INDEX.md                       ← Este archivo
-│   └── config.json.example            ← Plantilla de config
+├── 📋 Documentation (at root)
+│   ├── README.md                      ← READ FIRST (in English)
+│   ├── SUMMARY.md                     ← Executive summary (in Spanish)
+│   ├── CHANGELOG.md                   ← Version history
+│   ├── CONTRIBUTING.md                ← Contribution guide
+│   ├── LICENSE                        ← MIT License
+│   ├── BUILD_NUMBER_CI_FIX.md         ← Technical detail
+│   ├── INDEX.md                       ← This file
+│   └── config.json.example            ← Config template
 │
-├── 📦 Código Fuente
-│   ├── ArcGISMonitorExcelReporterLib/   ← Biblioteca principal
+├── 📦 Source Code
+│   ├── ArcGISMonitorExcelReporterLib/   ← Main library
 │   │   ├── ArcGISMonitorExcelReporter.cs
 │   │   ├── Client/                      ← API Client
 │   │   ├── Configuration/               ← Config models
 │   │   ├── Models/                      ← Domain models
 │   │   ├── Reporting/                   ← Report generation
-│   │   └── Samples/                     ← Ejemplos con XML Docs
-│   ├── ArcGISMonitorExcelReporter/      ← Aplicación console
+│   │   └── Samples/                     ← Examples with XML Docs
+│   ├── ArcGISMonitorExcelReporter/      ← Console application
 │   │   ├── Program.cs
 │   │   ├── VersionInfo.targets          ← MSBuild versioning
 │   │   └── GenerateVersionFile.ps1
-│   └── *.Tests/                         ← Proyectos de tests
+│   └── *.Tests/                         ← Test projects
 │
-├── 🔧 Configuración
+├── 🔧 Configuration
 │   ├── .github/
 │   │   └── workflows/
 │   │       └── release.yml              ← CI/CD workflow
 │   ├── .gitignore                       ← Git ignore rules
-│   ├── ArcGISMonitorExcelReporter.slnx ← Solución
+│   ├── ArcGISMonitorExcelReporter.slnx ← Solution
 │   └── global.json                      ← .NET version
 │
-└── 📄 Otros
+└── 📄 Other
 	├── BUILD_NUMBER.txt                 ← Auto-generated
 	├── LAST_DATE_PREFIX.txt            ← Auto-generated
-	└── BuildNumberFromCI.txt            ← Temporal (CI)
+	└── BuildNumberFromCI.txt            ← Temporary (CI)
 ```
 
 ---
 
-## 🔍 Búsqueda Rápida
+## 🔍 Quick Search
 
-### Pregunta: "¿Cómo configuro la aplicación?"
-→ Ver [README.md#quick-start](README.md#quick-start) y [config.json.example](config.json.example)
+### Question: "How do I configure the application?"
+→ See [README.md#quick-start](README.md#quick-start) and [config.json.example](config.json.example)
 
-### Pregunta: "¿Cómo contribuyo al proyecto?"
-→ Ver [CONTRIBUTING.md](CONTRIBUTING.md)
+### Question: "How do I contribute to the project?"
+→ See [CONTRIBUTING.md](CONTRIBUTING.md)
 
-### Pregunta: "¿Cuáles son las novedades en la última versión?"
-→ Ver [CHANGELOG.md](CHANGELOG.md)
+### Question: "What's new in the latest version?"
+→ See [CHANGELOG.md](CHANGELOG.md)
 
-### Pregunta: "¿Por qué el build number no se duplica en CI?"
-→ Ver [BUILD_NUMBER_CI_FIX.md](BUILD_NUMBER_CI_FIX.md)
+### Question: "Why doesn't the build number duplicate in CI?"
+→ See [BUILD_NUMBER_CI_FIX.md](BUILD_NUMBER_CI_FIX.md)
 
-### Pregunta: "¿Dónde está el acuerdo de licencia?"
-→ Ver [LICENSE](LICENSE)
+### Question: "Where is the license agreement?"
+→ See [LICENSE](LICENSE)
 
-### Pregunta: "¿Cómo resuelvo problemas?"
-→ Ver [README.md#troubleshooting](README.md#troubleshooting)
+### Question: "How do I troubleshoot issues?"
+→ See [README.md#troubleshooting](README.md#troubleshooting)
 
 ---
 
-## 🌐 Enlaces Importantes
+## 🌐 Important Links
 
-### Sitio del Proyecto
+### Project Site
 - 🐙 [GitHub Repository](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter)
-- 📦 [NuGet Package](https://www.nuget.org/) (pendiente)
-- 📖 [Documentación Oficial](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/docs)
+- 📦 [NuGet Package](https://www.nuget.org/) (pending)
+- 📖 [Official Documentation](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/docs)
 
-### Comunicación
-- 🐛 [Reportar Issues](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/issues)
+### Communication
+- 🐛 [Report Issues](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/issues)
 - 💬 [Discussions](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/discussions)
 - 📧 [Contact](https://github.com/desarrollosig-net)
 
-### Recursos Externos
+### External Resources
 - [.NET 8 Documentation](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-8)
 - [ArcGIS Monitor Documentation](https://doc.safe.com/arcgis-monitor/)
 - [ClosedXML GitHub](https://github.com/ClosedXML/ClosedXML)
@@ -196,39 +196,39 @@ ArcGISMonitorExcelReporter/
 
 ---
 
-## ✅ Checklist de Documentación
+## ✅ Documentation Checklist
 
-- ✓ README.md completo en inglés
-- ✓ CHANGELOG.md con historial
-- ✓ CONTRIBUTING.md para colaboradores
-- ✓ SUMMARY.md en español
-- ✓ LICENSE MIT
+- ✓ README.md complete in English
+- ✓ CHANGELOG.md with history
+- ✓ CONTRIBUTING.md for contributors
+- ✓ SUMMARY.md in Spanish
+- ✓ MIT LICENSE
 - ✓ config.json.example
-- ✓ BUILD_NUMBER_CI_FIX.md (técnico)
-- ✓ INDEX.md (este archivo)
-- ✓ XML Documentation en code
-- ✓ Examples en Samples/
+- ✓ BUILD_NUMBER_CI_FIX.md (technical)
+- ✓ INDEX.md (this file)
+- ✓ XML Documentation in code
+- ✓ Examples in Samples/
 
 ---
 
-## 📞 Soporte
+## 📞 Support
 
-¿No encuentras lo que buscas?
+Can't find what you're looking for?
 
-1. **Busca** en [GitHub Issues](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/issues)
-2. **Pregunta** en [GitHub Discussions](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/discussions)
-3. **Lee** todo el README.md - probablemente esté ahí
-4. **Contribuye** una mejora de documentación
-
----
-
-## 📅 Información del Documento
-
-- **Creado:** Enero 27, 2025
-- **Última Actualización:** Enero 27, 2025
-- **Versión:** 1.0
-- **Mantenedor:** DesarrolloSIG
+1. **Search** in [GitHub Issues](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/issues)
+2. **Ask** in [GitHub Discussions](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/discussions)
+3. **Read** the full README.md - it's probably there
+4. **Contribute** a documentation improvement
 
 ---
 
-**¡Gracias por tu interés en ArcGIS Monitor Excel Reporter!** 🚀
+## 📅 Document Information
+
+- **Created:** January 27, 2025
+- **Last Updated:** January 27, 2025
+- **Version:** 1.0
+- **Maintainer:** DesarrolloSIG
+
+---
+
+**Thank you for your interest in ArcGIS Monitor Excel Reporter!** 🚀
