@@ -1,59 +1,59 @@
-# ArcGIS Monitor Excel Reporter - Resumen de la Solución
+# ArcGIS Monitor Excel Reporter - Solution Summary
 
-## 📋 Descripción General
+## 📋 General Description
 
-**ArcGIS Monitor Excel Reporter** es una aplicación de consola .NET 8 que genera reportes en Excel con datos completos extraídos de ArcGIS Monitor, incluyendo métricas, componentes, servicios e información de salud del sistema.
+**ArcGIS Monitor Excel Reporter** is a .NET 8 console application that generates Excel reports with complete data extracted from ArcGIS Monitor, including metrics, components, services, and system health information.
 
-## 🎯 Objetivo Principal
+## 🎯 Main Objective
 
-Automatizar la extracción de datos desde ArcGIS Monitor y generar reportes profesionales en formato Excel que faciliten:
-- 📊 Análisis de métricas y tendencias
-- 🔍 Auditoría y cumplimiento normativo
-- 📈 Seguimiento de rendimiento
-- 📋 Documentación de estado del sistema
+Automate data extraction from ArcGIS Monitor and generate professional Excel reports that facilitate:
+- 📊 Metrics and trend analysis
+- 🔍 Auditing and regulatory compliance
+- 📈 Performance tracking
+- 📋 System status documentation
 
-## 🏗️ Arquitectura
+## 🏗️ Architecture
 
-La solución está compuesta por:
+The solution is composed of:
 
-### 1. **ArcGISMonitorExcelReporterLib** (Biblioteca)
-Componente principal contiene:
-- 🔌 **Cliente API** - Comunicación con ArcGIS Monitor
-- ⚙️ **Configuración** - Modelos de configuración JSON/programática
-- 📦 **Modelos** - Entidades de dominio (Collections, Components, Metrics, etc.)
-- 📝 **Reporting** - Lógica de generación de reportes
-- 📚 **Samples** - Ejemplos de uso
+### 1. **ArcGISMonitorExcelReporterLib** (Library)
+Main component contains:
+- 🔌 **API Client** - Communication with ArcGIS Monitor
+- ⚙️ **Configuration** - JSON/programmatic configuration models
+- 📦 **Models** - Domain entities (Collections, Components, Metrics, etc.)
+- 📝 **Reporting** - Report generation logic
+- 📚 **Samples** - Usage examples
 
-### 2. **ArcGISMonitorExcelReporter** (Aplicación de Consola)
-Punto de entrada que:
-- Lee configuración desde `config.json`
-- Valida parámetros
-- Invoca la librería
-- Genera archivo Excel
-- Proporciona logging estructurado
+### 2. **ArcGISMonitorExcelReporter** (Console Application)
+Entry point that:
+- Reads configuration from `config.json`
+- Validates parameters
+- Invokes the library
+- Generates the Excel file
+- Provides structured logging
 
-## 🔑 Características Principales
+## 🔑 Main Features
 
-| Característica | Descripción |
+| Feature | Description |
 |---|---|
-| **Reportes Excel Completos** | Múltiples hojas con datos formateados y estructurados |
-| **Autenticación Segura** | Soporte para contraseñas en texto plano o Base64 |
-| **Soporte de Zonas Horarias** | IANA timezone identifiers para cálculos precisos |
-| **Filtrado Flexible** | Por colecciones, tipos de componentes, métricas |
-| **Series de Tiempo** | Datos históricos con agregación configurable |
-| **Dual Configuration** | JSON o configuración programática |
-| **Ejecutables Autocontenidos** | Windows y Linux sin dependencias externas |
-| **Versionado Automático** | Sistema de build numbers diario (yyyy.MM.dd.BuildNumber) |
-| **CI/CD Listo** | GitHub Actions para builds y publicaciones automatizadas |
+| **Complete Excel Reports** | Multiple sheets with formatted and structured data |
+| **Secure Authentication** | Support for plain-text or Base64 passwords |
+| **Timezone Support** | IANA timezone identifiers for precise calculations |
+| **Flexible Filtering** | By collections, component types, metrics |
+| **Time Series** | Historical data with configurable aggregation |
+| **Dual Configuration** | JSON or programmatic configuration |
+| **Self-Contained Executables** | Windows and Linux with no external dependencies |
+| **Automatic Versioning** | Daily build number system (yyyy.MM.dd.BuildNumber) |
+| **CI/CD Ready** | GitHub Actions for automated builds and publishing |
 
-## 📦 Dependencias Principales
+## 📦 Main Dependencies
 
 ```json
 {
-  "ClosedXML": "Generación de archivos Excel",
-  "Serilog": "Logging estructurado",
-  "System.Text.Json": "Serialización JSON",
-  ".NET 8.0": "Runtime base"
+  "ClosedXML": "Excel file generation",
+  "Serilog": "Structured logging",
+  "System.Text.Json": "JSON serialization",
+  ".NET 8.0": "Base runtime"
 }
 ```
 
@@ -69,9 +69,9 @@ Punto de entrada que:
 ┌─────────────────────────────────────────────────────────────┐
 │  ArcGISMonitorExcelReporter.exe                             │
 ├─────────────────────────────────────────────────────────────┤
-│  1. Lee configuración                                       │
-│  2. Valida parámetros                                       │
-│  3. Autentica con ArcGIS Monitor                            │
+│  1. Read configuration                                      │
+│  2. Validate parameters                                     │
+│  3. Authenticate with ArcGIS Monitor                        │
 └────┬────────────────────────────────────────────────────────┘
 	 │
 	 │ 4. Invoca ArcGISMonitorExcelReporterLib
@@ -83,7 +83,7 @@ Punto de entrada que:
 │  2. Extrae Collections                                      │
 │  3. Extrae Components                                       │
 │  4. Extrae Metrics                                          │
-│  5. Obtiene históricos (time-series)                        │
+│  5. Fetch historical data (time-series)                     │
 └────┬────────────────────────────────────────────────────────┘
 	 │
 	 │ 6. Construye libro de Excel
@@ -99,120 +99,120 @@ Punto de entrada que:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## ⚙️ Sistema de Versionado
+## ⚙️ Versioning System
 
-### Formato
+### Format
 ```
 yyyy.MM.dd.BuildNumber
 ```
 
-### Comportamiento
-- **Builds Locales**: BuildNumber incrementa diariamente (1, 2, 3...) y se reinicia a medianoche
-- **Builds CI (GitHub Actions)**: BuildNumber vinculado a `github.run_number` para unicidad
-- **Multi-Platform CI**: Windows (win-x64) y Linux (linux-x64) comparten el mismo BuildNumber
+### Behavior
+- **Local Builds**: BuildNumber increments daily (1, 2, 3...) and resets at midnight
+- **CI Builds (GitHub Actions)**: BuildNumber tied to `github.run_number` for uniqueness
+- **Multi-Platform CI**: Windows (win-x64) and Linux (linux-x64) share the same BuildNumber
 
-### Archivos de Control
-- `BuildNumber.txt` - Número actual (git-ignored)
-- `LastDatePrefix.txt` - Fecha del último build (git-ignored)
-- `BuildNumberFromCI.txt` - Marcador de detección CI (git-ignored)
+### Control Files
+- `BuildNumber.txt` - Current number (git-ignored)
+- `LastDatePrefix.txt` - Date of the last build (git-ignored)
+- `BuildNumberFromCI.txt` - CI detection marker (git-ignored)
 
-**Ejemplo**: `2025.01.27.3` = Tercer build del 27 de enero de 2025
+**Example**: `2025.01.27.3` = Third build of January 27, 2025
 
-## 🔄 CI/CD con GitHub Actions
+## 🔄 CI/CD with GitHub Actions
 
 ### Workflow: `.github/workflows/release.yml`
 
 ```
 ┌─────────────────────────────────┐
-│  Trigger: Push de release tag   │
+│  Trigger: Push release tag      │
 └────┬────────────────────────────┘
 	 │
-	 ├─ Checkout código
+	 ├─ Checkout code
 	 ├─ Setup .NET 8
-	 ├─ Calcular versión (yyyy.MM.dd.BuildNumber)
-	 ├─ Pre-poblar BuildNumber.txt
-	 ├─ Pre-poblar LastDatePrefix.txt
-	 ├─ Crear marcador BuildNumberFromCI.txt
+	 ├─ Calculate version (yyyy.MM.dd.BuildNumber)
+	 ├─ Pre-populate BuildNumber.txt
+	 ├─ Pre-populate LastDatePrefix.txt
+	 ├─ Create BuildNumberFromCI.txt marker
 	 │
 	 ├─ Publish win-x64 (self-contained)
-	 ├─ Empaquetar artifacts Windows
+	 ├─ Package Windows artifacts
 	 │
-	 ├─ Restaurar marcador BuildNumberFromCI.txt
+	 ├─ Restore BuildNumberFromCI.txt marker
 	 ├─ Publish linux-x64 (self-contained)
-	 ├─ Empaquetar artifacts Linux
+	 ├─ Package Linux artifacts
 	 │
-	 ├─ Crear release en GitHub
-	 └─ Subir artifacts a release
+	 ├─ Create GitHub release
+	 └─ Upload artifacts to release
 ```
 
-### Propósito de `BuildNumberFromCI.txt`
-Previene que `VersionInfo.targets` incremente el build number cuando se compilan plataformas múltiples (Windows y Linux) en la misma ejecución de workflow. Esto asegura que ambos ejecutables tengan el mismo número de versión.
+### Purpose of `BuildNumberFromCI.txt`
+Prevents `VersionInfo.targets` from incrementing the build number when building multiple platforms (Windows and Linux) within the same workflow run. This ensures that both executables share the same version number.
 
-## 📊 Estructura de Excel Generado
+## 📊 Generated Excel Structure
 
-| Sheet | Contenido |
-|-------|----------|
-| **Collections** | Lista de colecciones monitoreadas |
-| **Components** | Componentes individuales (hosts, bases de datos, etc.) |
-| **Metrics Summary** | Resumen de métricas con estadísticas (min, max, promedio) |
-| **Alerts** | Alertas activas y niveles de severidad |
-| **Time Series** | Datos históricos de métricas con timestamps |
+| Sheet | Content |
+|-------|--------|
+| **Collections** | List of monitored collections |
+| **Components** | Individual components (hosts, databases, etc.) |
+| **Metrics Summary** | Metrics summary with statistics (min, max, average) |
+| **Alerts** | Active alerts and severity levels |
+| **Time Series** | Historical metric data with timestamps |
 
-**Características del Formato:**
-- Encabezados con colores de fondo
-- Paneles congelados para navegación fácil
-- Ancho de columnas auto-ajustado
-- Formato numérico apropiado para métricas
+**Format Features:**
+- Color-coded headers
+- Frozen panes for easy navigation
+- Auto-adjusted column widths
+- Appropriate numeric formatting for metrics
 
-## 🔐 Configuración de Seguridad
+## 🔐 Security Configuration
 
-### Autenticación
+### Authentication
 ```json
 {
-  "server": {
+	"server": {
 	"username": "admin",
-	"password": "contraseña",
+	"password": "your_password",
 	"password_encoding": false,
 	"ignore_ssl_errors": false
-  }
+	}
 }
 ```
 
-### Opciones
-| Opción | Valor | Descripción |
+### Options
+| Option | Value | Description |
 |--------|-------|-------------|
-| `password_encoding` | `true` | La contraseña está codificada en Base64 |
-| `password_encoding` | `false` | La contraseña es texto plano |
-| `ignore_ssl_errors` | `false` | Validar certificados SSL (RECOMENDADO) |
-| `ignore_ssl_errors` | `true` | Ignorar errores SSL (NO RECOMENDADO para producción) |
+| `password_encoding` | `true` | Password is Base64-encoded |
+| `password_encoding` | `false` | Password is plain text |
+| `ignore_ssl_errors` | `false` | Validate SSL certificates (RECOMMENDED) |
+| `ignore_ssl_errors` | `true` | Ignore SSL errors (NOT RECOMMENDED for production) |
 
-## 📋 Requisitos del Sistema
+## 📋 System Requirements
 
-| Componente | Requisito |
-|-----------|----------|
-| **.NET Runtime** | 8.0 o superior |
-| **Plataformas** | Windows x64, Linux x64 |
-| **ArcGIS Monitor** | 2023.x o posterior |
-| **Excel** | Cualquier aplicación que lea .xlsx (Excel, LibreOffice Calc, Google Sheets, etc.) |
+| Component | Requirement |
+|-----------|------------|
+| **.NET Runtime** | 8.0 or later |
+| **Platforms** | Windows x64, Linux x64 |
+| **ArcGIS Monitor** | 2023.x or later |
+| **Excel** | Any application that reads .xlsx (Excel, LibreOffice Calc, Google Sheets, etc.) |
 
-## 📚 Documentación Disponible
+## 📚 Available Documentation
 
-| Archivo | Propósito |
+| File | Purpose |
 |---------|----------|
-| **README.md** | Documentación completa en inglés |
-| **CHANGELOG.md** | Historial de cambios y versiones |
-| **CONTRIBUTING.md** | Guía para contribuir al proyecto |
-| **LICENSE** | Licencia MIT |
-| **SUMMARY.md** | Este archivo (resumen en español) |
-| **BUILD_NUMBER_CI_FIX.md** | Explicación técnica del fix de versionado |
+| **README.md** | Complete documentation in English |
+| **CHANGELOG.md** | Change history and versions |
+| **CONTRIBUTING.md** | Guide for contributing to the project |
+| **LICENSE** | MIT License |
+| **SUMMARY.md** | This file (summary in Spanish) |
+| **BUILD_NUMBER_CI_FIX.md** | Technical explanation of the versioning fix |
 
-## 🛠️ Desarrollo
+## 🛠️ Development
 
-### Proyectos en la Solución
-- `ArcGISMonitorExcelReporterLib` - Biblioteca principal (.NET 8)
-- `ArcGISMonitorExcelReporter` - Aplicación de consola (.NET 8)
+### Projects in the Solution
+- `ArcGISMonitorExcelReporterLib` - Main library (.NET 8)
+- `ArcGISMonitorExcelReporter` - Console application (.NET 8)
 
-### Construir Localmente
+### Build Locally
 ```bash
 # Debug
 dotnet build
@@ -220,80 +220,80 @@ dotnet build
 # Release
 dotnet build --configuration Release
 
-# Publicar para Windows
+# Publish for Windows
 dotnet publish -c Release -r win-x64 --self-contained
 
-# Publicar para Linux
+# Publish for Linux
 dotnet publish -c Release -r linux-x64 --self-contained
 ```
 
-### Estilo de Código
-- Convenciones Microsoft C#
-- PascalCase para miembros públicos
-- camelCase para variables locales
-- Documentación XML para APIs públicas
-- 4 espacios de indentación
+### Code Style
+- Microsoft C# conventions
+- PascalCase for public members
+- camelCase for local variables
+- XML documentation for public APIs
+- 4-space indentation
 
-## 🐛 Resolución de Problemas Comunes
+## 🐛 Common Troubleshooting
 
-| Problema | Causa | Solución |
-|----------|-------|----------|
-| "No se puede conectar al servidor" | URL incorrecta o servidor inaccesible | Verificar URL y conectividad de red |
-| "Credenciales inválidas" | Usuario/contraseña incorrectos | Verificar credenciales y permisos |
-| "Zona horaria no encontrada" | Identificador IANA inválido | Usar identificadores válidos (UTC, America/New_York, etc.) |
-| "Fuera de memoria" | Datos demasiado grandes | Reducir `page_size`, `past_days` o deshabilitar time-series |
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| "Cannot connect to server" | Incorrect URL or unreachable server | Verify URL and network connectivity |
+| "Invalid credentials" | Incorrect username/password | Verify credentials and permissions |
+| "Timezone not found" | Invalid IANA identifier | Use valid identifiers (UTC, America/New_York, etc.) |
+| "Out of memory" | Data set too large | Reduce `page_size`, `past_days`, or disable time-series |
 
-## 📞 Soporte
+## 📞 Support
 
-- 📖 [Documentación](README.md)
+- 📖 [Documentation](README.md)
 - 🐛 [Issues](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/issues)
 - 💬 [Discussions](https://github.com/desarrollosig-net/ArcGISMonitorExcelReporter/discussions)
 
-## 📝 Changelog Rápido
+## 📝 Quick Changelog
 
 ```
 v2025.01.27.1
-├─ Corrección del BuildNumber en GitHub Actions
-├─ Documentación XML completa en inglés
-├─ README.md en inglés
+├─ BuildNumber fix in GitHub Actions
+├─ Complete XML documentation in English
+├─ README.md in English
 ├─ CHANGELOG.md
 ├─ CONTRIBUTING.md
 ├─ LICENSE (MIT)
-└─ SUMMARY.md (este archivo)
+└─ SUMMARY.md (this file)
 
 v2025.01.20.1
-└─ Release inicial con funcionalidad completa
+└─ Initial release with full functionality
 ```
 
 ## 🎯 Roadmap
 
 ### Q1 2025
-- [ ] Optimización de rendimiento para datasets grandes
-- [ ] Soporte para exportación a CSV
-- [ ] Generación de reportes en lotes
+- [ ] Performance optimization for large datasets
+- [ ] CSV export support
+- [ ] Batch report generation
 
 ### Q2 2025
-- [ ] API web para generación remota
-- [ ] Ejecución de reportes programada
-- [ ] Entrega por email
-- [ ] Sistema de caché
+- [ ] Web API for remote generation
+- [ ] Scheduled report execution
+- [ ] Email delivery
+- [ ] Caching system
 
 ### Q3 2025
-- [ ] Plantillas de reporte personalizadas
-- [ ] Integración con Azure
-- [ ] Conector PowerBI
+- [ ] Custom report templates
+- [ ] Azure integration
+- [ ] PowerBI connector
 
 ### Q4 2025
-- [ ] Generación de dashboards
-- [ ] Integración de monitoreo en tiempo real
-- [ ] Analytics avanzados
+- [ ] Dashboard generation
+- [ ] Real-time monitoring integration
+- [ ] Advanced analytics
 
-## 📜 Licencia
+## 📜 License
 
-Licenciado bajo la Licencia MIT - Ver [LICENSE](LICENSE)
+Licensed under the MIT License - See [LICENSE](LICENSE)
 
 ---
 
-**Última Actualización:** 27 de enero de 2025  
-**Versión del Documento:** 1.0  
-**Estado del Proyecto:** Desarrollo Activo
+**Last Updated:** June 30, 2026
+**Document Version:** 1.0  
+**Project Status:** Active Development
