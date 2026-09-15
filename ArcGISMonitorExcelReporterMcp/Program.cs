@@ -100,6 +100,11 @@ static async Task RunHttpServerAsync(string[] args)
     // of the configured API keys via the X-Api-Key header. TLS termination (HTTPS) is expected to
     // be handled by whatever sits in front of this process (reverse proxy, load balancer, etc.).
     app.UseMiddleware<ApiKeyAuthMiddleware>(apiKeys);
+
+    // Unauthenticated on purpose: cloud platform health probes (e.g. Azure App Service) need to
+    // reach this without an API key. See ApiKeyAuthMiddleware.HealthCheckPath.
+    app.MapGet(ApiKeyAuthMiddleware.HealthCheckPath, () => Results.Ok("healthy"));
+
     app.MapMcp("/mcp");
 
     Log.Information("HTTP transport authenticated with {Count} configured API key(s)", apiKeys.Count);
