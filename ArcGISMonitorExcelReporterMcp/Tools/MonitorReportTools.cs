@@ -23,7 +23,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
         [McpServerTool(Name = "validate_configuration"),
          Description("Validates an ArcGIS Monitor Excel Reporter configuration (server connection and report settings) without querying the server. Returns { valid, error }.")]
         public static async Task<string> ValidateConfigurationAsync(
-            [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both.")] string? configPath = null,
+            [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both. Only available over stdio transport; rejected when the server runs in --http mode.")] string? configPath = null,
             [Description("Inline JSON configuration content (same shape as the config file). Provide this or configPath, not both.")] string? configJson = null,
             CancellationToken cancellationToken = default)
         {
@@ -43,7 +43,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
         [McpServerTool(Name = "build_report_summary"),
          Description("Queries ArcGIS Monitor and returns a lightweight JSON summary of the report (counts, per-collection breakdown, open alerts) without generating an Excel file.")]
         public static async Task<string> BuildReportSummaryAsync(
-            [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both.")] string? configPath = null,
+            [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both. Only available over stdio transport; rejected when the server runs in --http mode.")] string? configPath = null,
             [Description("Inline JSON configuration content (same shape as the config file). Provide this or configPath, not both.")] string? configJson = null,
             CancellationToken cancellationToken = default)
         {
@@ -73,7 +73,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
         [McpServerTool(Name = "generate_excel_report"),
          Description("Queries ArcGIS Monitor and writes a full Excel report to disk. Returns { outputPath, executionTime }.")]
         public static async Task<string> GenerateExcelReportAsync(
-            [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both.")] string? configPath = null,
+            [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both. Only available over stdio transport; rejected when the server runs in --http mode.")] string? configPath = null,
             [Description("Inline JSON configuration content (same shape as the config file). Provide this or configPath, not both.")] string? configJson = null,
             [Description("Full path where the .xlsx file should be written. If omitted, a timestamped file is created under a 'reports' folder next to the server executable.")] string? outputPath = null,
             CancellationToken cancellationToken = default)

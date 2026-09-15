@@ -22,7 +22,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
         [McpServerTool(Name = "list_components"),
          Description("Lists components (id, name, type, state) from ArcGIS Monitor, optionally filtered by collection, component type, or a name substring. Use this to discover component ids before calling get_component_metrics or get_metric_time_series.")]
         public static async Task<string> ListComponentsAsync(
-            [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both.")] string? configPath = null,
+            [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both. Only available over stdio transport; rejected when the server runs in --http mode.")] string? configPath = null,
             [Description("Inline JSON configuration content (same shape as the config file). Provide this or configPath, not both.")] string? configJson = null,
             [Description("Collection name to query. Use null, empty, or \"*\" for all collections.")] string? collectionName = "*",
             [Description("Component type to filter by (e.g. \"host\", \"service\", \"database\"). Omit for all types.")] string? componentType = null,
@@ -71,7 +71,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
         public static async Task<string> GetComponentMetricsAsync(
             [Description("Component id, as returned by list_components. Provide this or componentName.")] long? componentId = null,
             [Description("Component name (exact match, case-insensitive). Provide this or componentId.")] string? componentName = null,
-            [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both.")] string? configPath = null,
+            [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both. Only available over stdio transport; rejected when the server runs in --http mode.")] string? configPath = null,
             [Description("Inline JSON configuration content (same shape as the config file). Provide this or configPath, not both.")] string? configJson = null,
             [Description("Collection name to search in. Use null, empty, or \"*\" for all collections.")] string? collectionName = "*",
             [Description("Component type to narrow the search (e.g. \"host\"). Omit to search all types.")] string? componentType = null,
@@ -144,7 +144,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
          Description("Returns aggregated statistics (avg, min, max, stddev, p95, count) for metrics matching a name pattern, over a time range, grouped by component. Use this to answer 'how did metric X behave' without pulling a full report.")]
         public static async Task<string> GetMetricStatsAsync(
             [Description("Substring to match against metric names (case-insensitive), e.g. \"CPU\".")] string metricNameLike,
-            [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both.")] string? configPath = null,
+            [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both. Only available over stdio transport; rejected when the server runs in --http mode.")] string? configPath = null,
             [Description("Inline JSON configuration content (same shape as the config file). Provide this or configPath, not both.")] string? configJson = null,
             [Description("Collection name to query. Use null, empty, or \"*\" for all collections.")] string? collectionName = "*",
             [Description("Component type to filter by (e.g. \"host\"). Use \"*\" for all types.")] string componentType = "*",
@@ -209,7 +209,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
             [Description("Metric ids to fetch time series for, as returned by get_component_metrics or get_metric_stats.")] long[] metricIds,
             [Description("Start of the time series period (UTC).")] DateTimeOffset fromUtc,
             [Description("End of the time series period (UTC).")] DateTimeOffset toUtc,
-            [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both.")] string? configPath = null,
+            [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both. Only available over stdio transport; rejected when the server runs in --http mode.")] string? configPath = null,
             [Description("Inline JSON configuration content (same shape as the config file). Provide this or configPath, not both.")] string? configJson = null,
             [Description("Time bucket for aggregation, as \"observed_at:<interval>\" (e.g. \"observed_at:15m\", \"observed_at:1h\", \"observed_at:1d\"). Default is 15-minute buckets.")] string bucket = "observed_at:15m",
             CancellationToken cancellationToken = default)
@@ -268,7 +268,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
         [McpServerTool(Name = "list_open_alerts"),
          Description("Lists currently open alerts (metric threshold breaches that have not closed) for a collection/component type, without generating a full report.")]
         public static async Task<string> ListOpenAlertsAsync(
-            [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both.")] string? configPath = null,
+            [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both. Only available over stdio transport; rejected when the server runs in --http mode.")] string? configPath = null,
             [Description("Inline JSON configuration content (same shape as the config file). Provide this or configPath, not both.")] string? configJson = null,
             [Description("Collection name to query. Use null, empty, or \"*\" for all collections.")] string? collectionName = "*",
             [Description("Component type to filter by (e.g. \"host\"). Omit for all types.")] string? componentType = null,
