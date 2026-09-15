@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "arcgis-monitor-excel-reporter": {
+      "command": "ArcGISMonitorExcelReporterMcp\\bin\\Debug\\net8.0\\ArcGISMonitorExcelReporterMcp.exe"
+    }
+  }
+}
