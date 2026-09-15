@@ -414,6 +414,7 @@ namespace ArcGISMonitorExcelReporterLib.Builders
         /// }
         /// </code>
         /// </example>
+#pragma warning disable S107
         public static CollectionQueryRequest CollectionComponentsByMetricName(
             string collectionName,
             string componentType,
@@ -462,6 +463,7 @@ namespace ArcGISMonitorExcelReporterLib.Builders
                     new CollectionIncludeSpec { Resource = "observers", Where = "name='Metrics'" }
                 ]
             });
+#pragma warning restore S107
 
         /// <summary>
         /// Builds a query request for metric time series data with statistical aggregation over time buckets.
