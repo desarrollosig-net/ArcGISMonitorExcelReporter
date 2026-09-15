@@ -1,3 +1,4 @@
+using ArcGISMonitorExcelReporterMcp.Security;
 using ArcGISMonitorExcelReporterMcp.Tools;
 
 using Microsoft.AspNetCore.Builder;
@@ -13,7 +14,9 @@ using Serilog;
 //
 // Transport is selected via a command line flag:
 //   (no args)  -> stdio transport, for local MCP clients (Claude Desktop, Claude Code, etc.)
-//   --http     -> streamable HTTP transport, for remote/network clients
+//   --http     -> streamable HTTP transport, for remote/network clients (e.g. multiple AI
+//                 platforms sharing one deployment). Requires API key authentication; see
+//                 RunHttpServerAsync.
 //
 // IMPORTANT: in stdio mode, stdout is reserved for MCP JSON-RPC messages. Logging must never
 // write to stdout in that mode, or MCP clients will fail to parse the protocol stream.
@@ -76,6 +79,13 @@ static async Task RunStdioServerAsync(string[] args)
 
 static async Task RunHttpServerAsync(string[] args)
 {
+    // Over HTTP the server may be shared by several remote clients (different AI platforms,
+    // different users), so configPath is disabled: it would let any caller read arbitrary files
+    // on the server's disk. Clients pass credentials inline via configJson instead.
+    ConfigurationLoader.AllowConfigPath = false;
+
+    var apiKeys = LoadApiKeys();
+
     var remainingArgs = args.Where(a => a != "--http").ToArray();
     var builder = WebApplication.CreateBuilder(remainingArgs);
 
@@ -85,7 +95,37 @@ static async Task RunHttpServerAsync(string[] args)
         .WithTools<ComponentMetricTools>();
 
     var app = builder.Build();
+
+    // Every client (Claude, ChatGPT, Gemini, or any other MCP-compatible caller) must present one
+    // of the configured API keys via the X-Api-Key header. TLS termination (HTTPS) is expected to
+    // be handled by whatever sits in front of this process (reverse proxy, load balancer, etc.).
+    app.UseMiddleware<ApiKeyAuthMiddleware>(apiKeys);
     app.MapMcp("/mcp");
 
+    Log.Information("HTTP transport authenticated with {Count} configured API key(s)", apiKeys.Count);
+
     await app.RunAsync();
+}
+
+/// <summary>
+/// Loads the set of accepted API keys from the ARCGIS_MCP_API_KEYS environment variable
+/// (comma-separated). Fails fast if none are configured, since running the HTTP transport
+/// without authentication would expose it to any client that can reach the endpoint.
+/// </summary>
+static HashSet<string> LoadApiKeys()
+{
+    var raw = Environment.GetEnvironmentVariable("ARCGIS_MCP_API_KEYS");
+    var keys = (raw ?? string.Empty)
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .ToHashSet(StringComparer.Ordinal);
+
+    if(keys.Count == 0)
+    {
+        throw new InvalidOperationException(
+            "The HTTP transport requires at least one API key. Set the ARCGIS_MCP_API_KEYS " +
+            "environment variable to a comma-separated list of keys (one per client) before " +
+            "starting the server with --http.");
+    }
+
+    return keys;
 }

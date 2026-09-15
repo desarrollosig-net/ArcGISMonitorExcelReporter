@@ -14,6 +14,14 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
             WriteIndented = true
         };
 
+        /// <summary>
+        /// Whether <c>configPath</c> may be used to read a configuration file from the server's
+        /// local disk. Set to <c>false</c> when running under the HTTP transport, since remote
+        /// clients could otherwise read any file the server process can access. Stdio mode leaves
+        /// this <c>true</c>, since the client and server share the same trust boundary there.
+        /// </summary>
+        public static bool AllowConfigPath { get; set; } = true;
+
         public static async Task<ReporterConfiguration> LoadConfigurationAsync(string? configPath, string? configJson, CancellationToken cancellationToken)
         {
             if(!string.IsNullOrWhiteSpace(configPath) && !string.IsNullOrWhiteSpace(configJson))
@@ -23,6 +31,11 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
 
             if(!string.IsNullOrWhiteSpace(configPath))
             {
+                if(!AllowConfigPath)
+                {
+                    throw new ArgumentException("configPath is not available over the HTTP transport (it would let a remote client read arbitrary files on the server). Provide configJson instead.");
+                }
+
                 return await ReporterConfiguration.LoadAsync(configPath, cancellationToken).ConfigureAwait(false);
             }
 
