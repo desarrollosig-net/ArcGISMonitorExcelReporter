@@ -16,8 +16,21 @@ namespace ArcGISMonitorExcelReporterMcp.Security
     {
         public const string HeaderName = "X-Api-Key";
 
+        /// <summary>
+        /// Path exempted from API key checks, so a cloud platform's health probe can reach it
+        /// without a key. Carries no data about the ArcGIS Monitor connection, so it's safe to
+        /// leave unauthenticated.
+        /// </summary>
+        public const string HealthCheckPath = "/health";
+
         public async Task InvokeAsync(HttpContext context)
         {
+            if(context.Request.Path.Equals(HealthCheckPath, StringComparison.OrdinalIgnoreCase))
+            {
+                await next(context).ConfigureAwait(false);
+                return;
+            }
+
             if(!context.Request.Headers.TryGetValue(HeaderName, out var providedKey) || !IsValidKey(providedKey.ToString()))
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;

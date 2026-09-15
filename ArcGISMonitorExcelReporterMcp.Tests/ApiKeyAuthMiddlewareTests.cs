@@ -55,5 +55,21 @@ namespace ArcGISMonitorExcelReporterMcp.Tests
             Assert.True(nextCalled);
             Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
         }
+
+        [Fact]
+        public async Task InvokeAsync_WithHealthCheckPath_CallsNextWithoutApiKey()
+        {
+            var nextCalled = false;
+            RequestDelegate next = _ => { nextCalled = true; return Task.CompletedTask; };
+            var middleware = new ApiKeyAuthMiddleware(next, new HashSet<string> { "correct-key" });
+
+            var context = new DefaultHttpContext();
+            context.Response.Body = new MemoryStream();
+            context.Request.Path = ApiKeyAuthMiddleware.HealthCheckPath;
+
+            await middleware.InvokeAsync(context);
+
+            Assert.True(nextCalled);
+        }
     }
 }
