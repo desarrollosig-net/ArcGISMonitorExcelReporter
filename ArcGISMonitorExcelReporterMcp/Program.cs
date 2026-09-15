@@ -68,7 +68,8 @@ static async Task RunStdioServerAsync(string[] args)
 
     builder.Services.AddMcpServer()
         .WithStdioServerTransport()
-        .WithTools<MonitorReportTools>();
+        .WithTools<MonitorReportTools>()
+        .WithTools<ComponentMetricTools>();
 
     await builder.Build().RunAsync();
 }
@@ -80,7 +81,8 @@ static async Task RunHttpServerAsync(string[] args)
 
     builder.Services.AddMcpServer()
         .WithHttpTransport(options => options.SessionMode = HttpServerSessionMode.Stateless)
-        .WithTools<MonitorReportTools>();
+        .WithTools<MonitorReportTools>()
+        .WithTools<ComponentMetricTools>();
 
     var app = builder.Build();
     app.MapMcp("/mcp");

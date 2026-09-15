@@ -8,8 +8,6 @@ using ModelContextProtocol.Server;
 
 using Serilog;
 
-using ReporterConfiguration = ArcGISMonitorExcelReporterLib.Configuration.Configuration;
-
 namespace ArcGISMonitorExcelReporterMcp.Tools
 {
     /// <summary>
@@ -20,10 +18,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
     [McpServerToolType]
     public sealed class MonitorReportTools
     {
-        private static readonly JsonSerializerOptions ResponseJsonOptions = new()
-        {
-            WriteIndented = true
-        };
+        private static readonly JsonSerializerOptions ResponseJsonOptions = ConfigurationLoader.ResponseJsonOptions;
 
         [McpServerTool(Name = "validate_configuration"),
          Description("Validates an ArcGIS Monitor Excel Reporter configuration (server connection and report settings) without querying the server. Returns { valid, error }.")]
@@ -34,7 +29,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
         {
             try
             {
-                var configuration = await LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
+                var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
                 configuration.Validate();
                 return JsonSerializer.Serialize(new { valid = true, error = (string?)null }, ResponseJsonOptions);
             }
@@ -52,7 +47,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
             [Description("Inline JSON configuration content (same shape as the config file). Provide this or configPath, not both.")] string? configJson = null,
             CancellationToken cancellationToken = default)
         {
-            var configuration = await LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
+            var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
             var reporter = new ArcGisMonitorExcelReporter();
 
             Log.Information("Building report summary (no Excel output)");
@@ -83,7 +78,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
             [Description("Full path where the .xlsx file should be written. If omitted, a timestamped file is created under a 'reports' folder next to the server executable.")] string? outputPath = null,
             CancellationToken cancellationToken = default)
         {
-            var configuration = await LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
+            var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
             var reporter = new ArcGisMonitorExcelReporter();
             var resolvedOutputPath = ResolveOutputPath(outputPath);
 
@@ -99,27 +94,6 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
             };
 
             return JsonSerializer.Serialize(result, ResponseJsonOptions);
-        }
-
-        private static async Task<ReporterConfiguration> LoadConfigurationAsync(string? configPath, string? configJson, CancellationToken cancellationToken)
-        {
-            if(!string.IsNullOrWhiteSpace(configPath) && !string.IsNullOrWhiteSpace(configJson))
-            {
-                throw new ArgumentException("Provide either configPath or configJson, not both.");
-            }
-
-            if(!string.IsNullOrWhiteSpace(configPath))
-            {
-                return await ReporterConfiguration.LoadAsync(configPath, cancellationToken).ConfigureAwait(false);
-            }
-
-            if(!string.IsNullOrWhiteSpace(configJson))
-            {
-                var configuration = JsonSerializer.Deserialize<ReporterConfiguration>(configJson, ArcGISMonitorExcelReporterLib.Models.MonitorJson.Options);
-                return configuration ?? throw new JsonException("Unable to deserialize configJson.");
-            }
-
-            throw new ArgumentException("Either configPath or configJson must be provided.");
         }
 
         private static string ResolveOutputPath(string? outputPath)
