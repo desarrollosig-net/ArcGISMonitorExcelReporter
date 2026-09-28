@@ -79,7 +79,9 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     # Only known-good pushes reach production; work_20260527 stays limited to build+push above.
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    # Skipped while AZURE_CLIENT_ID isn't set (blocked on an Entra ID app registration
+    # pending admin approval) -- deploys stay manual (`az containerapp update`) until then.
+    if: (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && vars.MCP_OIDC_READY == 'true'
 
     steps:
       - name: Azure login (OIDC)
