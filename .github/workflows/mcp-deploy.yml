@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - work_20260527
     paths:
       - 'ArcGISMonitorExcelReporterMcp/**'
       - 'ArcGISMonitorExcelReporterMcp.Tests/**'
