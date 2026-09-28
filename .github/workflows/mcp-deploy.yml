@@ -19,6 +19,7 @@ env:
 permissions:
   contents: read
   packages: write
+  id-token: write
 
 jobs:
   test:
@@ -72,3 +73,27 @@ jobs:
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to Azure Container Apps
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    # Only known-good pushes reach production; work_20260527 stays limited to build+push above.
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Update Container App image
+        uses: azure/CLI@v2
+        with:
+          inlineScript: |
+            az containerapp update \
+              --name ca-arcgis-mcp \
+              --resource-group rg-arcgis-mcp \
+              --image ${{ env.IMAGE_NAME }}:${{ github.sha }}
