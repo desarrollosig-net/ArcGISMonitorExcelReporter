@@ -5,6 +5,10 @@ on:
     branches:
       - main
       - master
+    paths:
+      - 'ArcGISMonitorExcelReporter/**'
+      - 'ArcGISMonitorExcelReporterLib/**'
+      - '.github/workflows/release.yml'
   workflow_dispatch:
 
 permissions:
