@@ -1,0 +1,73 @@
+name: Build & Publish MCP Server Image
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'ArcGISMonitorExcelReporterMcp/**'
+      - 'ArcGISMonitorExcelReporterMcp.Tests/**'
+      - 'ArcGISMonitorExcelReporterLib/**'
+      - '.github/workflows/mcp-deploy.yml'
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: ghcr.io/desarrollosig-net/arcgis-monitor-excel-reporter-mcp
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore ArcGISMonitorExcelReporterMcp.Tests/ArcGISMonitorExcelReporterMcp.Tests.csproj
+
+      - name: Test
+        run: dotnet test ArcGISMonitorExcelReporterMcp.Tests/ArcGISMonitorExcelReporterMcp.Tests.csproj --configuration Release --no-restore
+
+  build-and-push:
+    name: Build & Push Image
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Build context is the repo root because the Dockerfile COPYs both
+      # ArcGISMonitorExcelReporterMcp/ and ArcGISMonitorExcelReporterLib/.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ArcGISMonitorExcelReporterMcp/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
