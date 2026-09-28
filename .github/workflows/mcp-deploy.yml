@@ -77,9 +77,8 @@ jobs:
     name: Deploy to Azure Container Apps
     needs: build-and-push
     runs-on: ubuntu-latest
-    # TEMP: also allow work_20260527 to validate the deploy job end-to-end before merging.
-    # Remove work_20260527 from this condition once verified.
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/work_20260527'
+    # Only known-good pushes reach production; work_20260527 stays limited to build+push above.
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
 
     steps:
       # Client-secret login, not OIDC: creating a new Entra ID app registration (required for
