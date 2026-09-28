@@ -2,6 +2,13 @@
   "mcpServers": {
     "arcgis-monitor-excel-reporter": {
       "command": "ArcGISMonitorExcelReporterMcp\\bin\\Debug\\net8.0\\ArcGISMonitorExcelReporterMcp.exe"
+    },
+    "arcgis-monitor-excel-reporter-cloud": {
+      "type": "http",
+      "url": "https://ca-arcgis-mcp.purplefield-ea05dbd0.eastus.azurecontainerapps.io/mcp",
+      "headers": {
+        "X-Api-Key": "${ARCGIS_MCP_API_KEY}"
+      }
     }
   }
 }
