@@ -47,27 +47,30 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
             [Description("Inline JSON configuration content (same shape as the config file). Provide this or configPath, not both.")] string? configJson = null,
             CancellationToken cancellationToken = default)
         {
-            var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
-            var reporter = new ArcGisMonitorExcelReporter();
-
-            Log.Information("Building report summary (no Excel output)");
-            var report = await reporter.BuildReportAsync(configuration, cancellationToken).ConfigureAwait(false);
-
-            var summary = new
+            return await ToolErrorHandling.RunAsync("build_report_summary", async () =>
             {
-                serverUrl = report.ServerUrl,
-                collectionName = report.CollectionName,
-                fromUtc = report.FromUtc,
-                toUtc = report.ToUtc,
-                collectionsCount = report.Collections.Count,
-                componentsCount = report.Components.Count,
-                metricsCount = report.Metrics.Count,
-                alertsCount = report.Alerts.Count,
-                collections = report.Collections,
-                openAlerts = report.Alerts.Where(a => string.Equals(a.State, "open", StringComparison.OrdinalIgnoreCase)).ToList()
-            };
+                var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
+                var reporter = new ArcGisMonitorExcelReporter();
 
-            return JsonSerializer.Serialize(summary, ResponseJsonOptions);
+                Log.Information("Building report summary (no Excel output)");
+                var report = await reporter.BuildReportAsync(configuration, cancellationToken).ConfigureAwait(false);
+
+                var summary = new
+                {
+                    serverUrl = report.ServerUrl,
+                    collectionName = report.CollectionName,
+                    fromUtc = report.FromUtc,
+                    toUtc = report.ToUtc,
+                    collectionsCount = report.Collections.Count,
+                    componentsCount = report.Components.Count,
+                    metricsCount = report.Metrics.Count,
+                    alertsCount = report.Alerts.Count,
+                    collections = report.Collections,
+                    openAlerts = report.Alerts.Where(a => string.Equals(a.State, "open", StringComparison.OrdinalIgnoreCase)).ToList()
+                };
+
+                return JsonSerializer.Serialize(summary, ResponseJsonOptions);
+            }).ConfigureAwait(false);
         }
 
         [McpServerTool(Name = "generate_excel_report"),
@@ -78,22 +81,25 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
             [Description("Full path where the .xlsx file should be written. If omitted, a timestamped file is created under a 'reports' folder next to the server executable.")] string? outputPath = null,
             CancellationToken cancellationToken = default)
         {
-            var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
-            var reporter = new ArcGisMonitorExcelReporter();
-            var resolvedOutputPath = ResolveOutputPath(outputPath);
-
-            Log.Information("Generating Excel report to {OutputPath}", resolvedOutputPath);
-            var stopwatch = Stopwatch.StartNew();
-            var generatedPath = await reporter.GenerateExcelAsync(configuration, resolvedOutputPath, stopwatch, cancellationToken).ConfigureAwait(false);
-            stopwatch.Stop();
-
-            var result = new
+            return await ToolErrorHandling.RunAsync("generate_excel_report", async () =>
             {
-                outputPath = Path.GetFullPath(generatedPath),
-                executionTime = stopwatch.Elapsed.ToString("hh\\:mm\\:ss")
-            };
+                var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
+                var reporter = new ArcGisMonitorExcelReporter();
+                var resolvedOutputPath = ResolveOutputPath(outputPath);
 
-            return JsonSerializer.Serialize(result, ResponseJsonOptions);
+                Log.Information("Generating Excel report to {OutputPath}", resolvedOutputPath);
+                var stopwatch = Stopwatch.StartNew();
+                var generatedPath = await reporter.GenerateExcelAsync(configuration, resolvedOutputPath, stopwatch, cancellationToken).ConfigureAwait(false);
+                stopwatch.Stop();
+
+                var result = new
+                {
+                    outputPath = Path.GetFullPath(generatedPath),
+                    executionTime = stopwatch.Elapsed.ToString("hh\\:mm\\:ss")
+                };
+
+                return JsonSerializer.Serialize(result, ResponseJsonOptions);
+            }).ConfigureAwait(false);
         }
 
         private static string ResolveOutputPath(string? outputPath)

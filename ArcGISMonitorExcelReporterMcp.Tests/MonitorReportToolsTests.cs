@@ -2,6 +2,8 @@ using System.Text.Json;
 
 using ArcGISMonitorExcelReporterMcp.Tools;
 
+using ModelContextProtocol;
+
 namespace ArcGISMonitorExcelReporterMcp.Tests
 {
     public sealed class MonitorReportToolsTests : IDisposable
@@ -126,12 +128,14 @@ namespace ArcGISMonitorExcelReporterMcp.Tests
         }
 
         [Fact]
-        public async Task BuildReportSummaryAsync_WithBothConfigPathAndConfigJson_ThrowsArgumentException()
+        public async Task BuildReportSummaryAsync_WithBothConfigPathAndConfigJson_ThrowsMcpExceptionWrappingArgumentException()
         {
             var path = WriteTempConfig(ValidConfigJson);
 
-            await Assert.ThrowsAsync<ArgumentException>(
+            var exception = await Assert.ThrowsAsync<McpException>(
                 () => MonitorReportTools.BuildReportSummaryAsync(configPath: path, configJson: ValidConfigJson));
+
+            Assert.IsType<ArgumentException>(exception.InnerException);
         }
 
         [Fact]
@@ -144,8 +148,10 @@ namespace ArcGISMonitorExcelReporterMcp.Tests
                 }
                 """;
 
-            await Assert.ThrowsAsync<InvalidOperationException>(
+            var exception = await Assert.ThrowsAsync<McpException>(
                 () => MonitorReportTools.BuildReportSummaryAsync(configJson: invalidConfigJson));
+
+            Assert.IsType<InvalidOperationException>(exception.InnerException);
         }
 
         [Fact]
@@ -170,8 +176,10 @@ namespace ArcGISMonitorExcelReporterMcp.Tests
                 }
                 """;
 
-            await Assert.ThrowsAsync<InvalidOperationException>(
+            var exception = await Assert.ThrowsAsync<McpException>(
                 () => MonitorReportTools.GenerateExcelReportAsync(configJson: badPasswordConfigJson));
+
+            Assert.IsType<InvalidOperationException>(exception.InnerException);
         }
     }
 }

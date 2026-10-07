@@ -30,40 +30,43 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
             [Description("Number of records per page when paginating through ArcGIS Monitor. Default is 100.")] int pageSize = 100,
             CancellationToken cancellationToken = default)
         {
-            var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
-            var reporter = new ArcGisMonitorExcelReporter();
+            return await ToolErrorHandling.RunAsync("list_components", async () =>
+            {
+                var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
+                var reporter = new ArcGisMonitorExcelReporter();
 
-            using var connection = await reporter.ConnectAsync(configuration, cancellationToken).ConfigureAwait(false);
+                using var connection = await reporter.ConnectAsync(configuration, cancellationToken).ConfigureAwait(false);
 
-            var toUtc = DateTimeOffset.UtcNow;
-            var fromUtc = toUtc.AddDays(-1);
-            var componentTypes = string.IsNullOrWhiteSpace(componentType) ? null : new List<string> { componentType };
+                var toUtc = DateTimeOffset.UtcNow;
+                var fromUtc = toUtc.AddDays(-1);
+                var componentTypes = string.IsNullOrWhiteSpace(componentType) ? null : new List<string> { componentType };
 
-            Log.Information("Listing components for collection {Collection}, type {Type}", collectionName, componentType);
+                Log.Information("Listing components for collection {Collection}, type {Type}", collectionName, componentType);
 
-            var components = await connection.Queries.GetAllComponentsWithMetricsAsync(
-                string.IsNullOrWhiteSpace(collectionName) ? "*" : collectionName,
-                fromUtc,
-                toUtc,
-                pageSize,
-                componentTypes,
-                cancellationToken).ConfigureAwait(false);
+                var components = await connection.Queries.GetAllComponentsWithMetricsAsync(
+                    string.IsNullOrWhiteSpace(collectionName) ? "*" : collectionName,
+                    fromUtc,
+                    toUtc,
+                    pageSize,
+                    componentTypes,
+                    cancellationToken).ConfigureAwait(false);
 
-            var items = components
-                .Select(c => c.Attributes)
-                .Where(a => string.IsNullOrWhiteSpace(nameContains) || (a.Name?.Contains(nameContains, StringComparison.OrdinalIgnoreCase) ?? false))
-                .Select(a => new
-                {
-                    id = a.Id,
-                    name = a.Name,
-                    type = a.Type,
-                    subtype = a.Subtype,
-                    state = a.State,
-                    systemId = a.SystemId
-                })
-                .ToList();
+                var items = components
+                    .Select(c => c.Attributes)
+                    .Where(a => string.IsNullOrWhiteSpace(nameContains) || (a.Name?.Contains(nameContains, StringComparison.OrdinalIgnoreCase) ?? false))
+                    .Select(a => new
+                    {
+                        id = a.Id,
+                        name = a.Name,
+                        type = a.Type,
+                        subtype = a.Subtype,
+                        state = a.State,
+                        systemId = a.SystemId
+                    })
+                    .ToList();
 
-            return JsonSerializer.Serialize(new { count = items.Count, components = items }, ResponseJsonOptions);
+                return JsonSerializer.Serialize(new { count = items.Count, components = items }, ResponseJsonOptions);
+            }).ConfigureAwait(false);
         }
 
         [McpServerTool(Name = "get_component_metrics"),
@@ -77,67 +80,70 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
             [Description("Component type to narrow the search (e.g. \"host\"). Omit to search all types.")] string? componentType = null,
             CancellationToken cancellationToken = default)
         {
-            if(componentId is null && string.IsNullOrWhiteSpace(componentName))
+            return await ToolErrorHandling.RunAsync("get_component_metrics", async () =>
             {
-                throw new ArgumentException("Provide either componentId or componentName.");
-            }
-
-            var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
-            var reporter = new ArcGisMonitorExcelReporter();
-
-            using var connection = await reporter.ConnectAsync(configuration, cancellationToken).ConfigureAwait(false);
-
-            var toUtc = DateTimeOffset.UtcNow;
-            var fromUtc = toUtc.AddDays(-1);
-            var componentTypes = string.IsNullOrWhiteSpace(componentType) ? null : new List<string> { componentType };
-
-            var components = await connection.Queries.GetAllComponentsWithMetricsAsync(
-                string.IsNullOrWhiteSpace(collectionName) ? "*" : collectionName,
-                fromUtc,
-                toUtc,
-                100,
-                componentTypes,
-                cancellationToken).ConfigureAwait(false);
-
-            var component = components.FirstOrDefault(c =>
-                (componentId.HasValue && c.Attributes.Id == componentId.Value) ||
-                (!string.IsNullOrWhiteSpace(componentName) && string.Equals(c.Attributes.Name, componentName, StringComparison.OrdinalIgnoreCase)));
-
-            if(component is null)
-            {
-                return JsonSerializer.Serialize(new { found = false, component = (object?)null, metrics = Array.Empty<object>() }, ResponseJsonOptions);
-            }
-
-            var metrics = (component.Metrics ?? [])
-                .Select(m => new
+                if(componentId is null && string.IsNullOrWhiteSpace(componentName))
                 {
-                    metricId = m.Attributes.Id,
-                    name = m.Attributes.Name,
-                    unit = m.Attributes.Unit,
-                    isAlertingEnabled = m.Attributes.IsAlertingEnabled,
-                    aggregation = m.Attributes.Aggregation,
-                    @operator = m.Attributes.Operator,
-                    infoThreshold = m.Attributes.InfoThreshold,
-                    warningThreshold = m.Attributes.WarningThreshold,
-                    criticalThreshold = m.Attributes.CriticalThreshold
-                })
-                .ToList();
+                    throw new ArgumentException("Provide either componentId or componentName.");
+                }
 
-            var result = new
-            {
-                found = true,
-                component = new
+                var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
+                var reporter = new ArcGisMonitorExcelReporter();
+
+                using var connection = await reporter.ConnectAsync(configuration, cancellationToken).ConfigureAwait(false);
+
+                var toUtc = DateTimeOffset.UtcNow;
+                var fromUtc = toUtc.AddDays(-1);
+                var componentTypes = string.IsNullOrWhiteSpace(componentType) ? null : new List<string> { componentType };
+
+                var components = await connection.Queries.GetAllComponentsWithMetricsAsync(
+                    string.IsNullOrWhiteSpace(collectionName) ? "*" : collectionName,
+                    fromUtc,
+                    toUtc,
+                    100,
+                    componentTypes,
+                    cancellationToken).ConfigureAwait(false);
+
+                var component = components.FirstOrDefault(c =>
+                    (componentId.HasValue && c.Attributes.Id == componentId.Value) ||
+                    (!string.IsNullOrWhiteSpace(componentName) && string.Equals(c.Attributes.Name, componentName, StringComparison.OrdinalIgnoreCase)));
+
+                if(component is null)
                 {
-                    id = component.Attributes.Id,
-                    name = component.Attributes.Name,
-                    type = component.Attributes.Type,
-                    state = component.Attributes.State
-                },
-                metricsCount = metrics.Count,
-                metrics
-            };
+                    return JsonSerializer.Serialize(new { found = false, component = (object?)null, metrics = Array.Empty<object>() }, ResponseJsonOptions);
+                }
 
-            return JsonSerializer.Serialize(result, ResponseJsonOptions);
+                var metrics = (component.Metrics ?? [])
+                    .Select(m => new
+                    {
+                        metricId = m.Attributes.Id,
+                        name = m.Attributes.Name,
+                        unit = m.Attributes.Unit,
+                        isAlertingEnabled = m.Attributes.IsAlertingEnabled,
+                        aggregation = m.Attributes.Aggregation,
+                        @operator = m.Attributes.Operator,
+                        infoThreshold = m.Attributes.InfoThreshold,
+                        warningThreshold = m.Attributes.WarningThreshold,
+                        criticalThreshold = m.Attributes.CriticalThreshold
+                    })
+                    .ToList();
+
+                var result = new
+                {
+                    found = true,
+                    component = new
+                    {
+                        id = component.Attributes.Id,
+                        name = component.Attributes.Name,
+                        type = component.Attributes.Type,
+                        state = component.Attributes.State
+                    },
+                    metricsCount = metrics.Count,
+                    metrics
+                };
+
+                return JsonSerializer.Serialize(result, ResponseJsonOptions);
+            }).ConfigureAwait(false);
         }
 
         [McpServerTool(Name = "get_metric_stats"),
@@ -153,54 +159,57 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
             [Description("Number of records per page when paginating through ArcGIS Monitor. Default is 100.")] int pageSize = 100,
             CancellationToken cancellationToken = default)
         {
-            if(string.IsNullOrWhiteSpace(metricNameLike))
+            return await ToolErrorHandling.RunAsync("get_metric_stats", async () =>
             {
-                throw new ArgumentException("metricNameLike must be provided.", nameof(metricNameLike));
-            }
-
-            var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
-            var reporter = new ArcGisMonitorExcelReporter();
-
-            using var connection = await reporter.ConnectAsync(configuration, cancellationToken).ConfigureAwait(false);
-
-            var resolvedToUtc = toUtc ?? DateTimeOffset.UtcNow;
-            var resolvedFromUtc = fromUtc ?? resolvedToUtc.AddDays(-1);
-
-            Log.Information("Fetching metric stats for {MetricLike} from {From} to {To}", metricNameLike, resolvedFromUtc, resolvedToUtc);
-
-            var components = await connection.Queries.GetComponentsWithMetricStatsAsync(
-                string.IsNullOrWhiteSpace(collectionName) ? "*" : collectionName,
-                string.IsNullOrWhiteSpace(componentType) ? "*" : componentType,
-                metricNameLike,
-                resolvedFromUtc,
-                resolvedToUtc,
-                pageSize,
-                cancellationToken).ConfigureAwait(false);
-
-            var rows = components
-                .SelectMany(c => (c.Metrics ?? []).Select(m =>
+                if(string.IsNullOrWhiteSpace(metricNameLike))
                 {
-                    var stats = m.MetricsData?.FirstOrDefault()?.Attributes;
-                    return new
-                    {
-                        componentId = c.Attributes.Id,
-                        componentName = c.Attributes.Name,
-                        componentType = c.Attributes.Type,
-                        metricId = m.Attributes.Id,
-                        metricName = m.Attributes.Name,
-                        unit = m.Attributes.Unit,
-                        avg = stats?.AvgValue,
-                        min = stats?.MinValue,
-                        max = stats?.MaxValue,
-                        stdDev = stats?.StdDevValue,
-                        p95 = stats?.Percentile95Value,
-                        sum = stats?.SumValue,
-                        count = stats?.CountValue
-                    };
-                }))
-                .ToList();
+                    throw new ArgumentException("metricNameLike must be provided.", nameof(metricNameLike));
+                }
 
-            return JsonSerializer.Serialize(new { fromUtc = resolvedFromUtc, toUtc = resolvedToUtc, count = rows.Count, metrics = rows }, ResponseJsonOptions);
+                var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
+                var reporter = new ArcGisMonitorExcelReporter();
+
+                using var connection = await reporter.ConnectAsync(configuration, cancellationToken).ConfigureAwait(false);
+
+                var resolvedToUtc = toUtc ?? DateTimeOffset.UtcNow;
+                var resolvedFromUtc = fromUtc ?? resolvedToUtc.AddDays(-1);
+
+                Log.Information("Fetching metric stats for {MetricLike} from {From} to {To}", metricNameLike, resolvedFromUtc, resolvedToUtc);
+
+                var components = await connection.Queries.GetComponentsWithMetricStatsAsync(
+                    string.IsNullOrWhiteSpace(collectionName) ? "*" : collectionName,
+                    string.IsNullOrWhiteSpace(componentType) ? "*" : componentType,
+                    metricNameLike,
+                    resolvedFromUtc,
+                    resolvedToUtc,
+                    pageSize,
+                    cancellationToken).ConfigureAwait(false);
+
+                var rows = components
+                    .SelectMany(c => (c.Metrics ?? []).Select(m =>
+                    {
+                        var stats = m.MetricsData?.FirstOrDefault()?.Attributes;
+                        return new
+                        {
+                            componentId = c.Attributes.Id,
+                            componentName = c.Attributes.Name,
+                            componentType = c.Attributes.Type,
+                            metricId = m.Attributes.Id,
+                            metricName = m.Attributes.Name,
+                            unit = m.Attributes.Unit,
+                            avg = stats?.AvgValue,
+                            min = stats?.MinValue,
+                            max = stats?.MaxValue,
+                            stdDev = stats?.StdDevValue,
+                            p95 = stats?.Percentile95Value,
+                            sum = stats?.SumValue,
+                            count = stats?.CountValue
+                        };
+                    }))
+                    .ToList();
+
+                return JsonSerializer.Serialize(new { fromUtc = resolvedFromUtc, toUtc = resolvedToUtc, count = rows.Count, metrics = rows }, ResponseJsonOptions);
+            }).ConfigureAwait(false);
         }
 
         [McpServerTool(Name = "get_metric_time_series"),
@@ -214,55 +223,58 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
             [Description("Time bucket for aggregation, as \"observed_at:<interval>\" (e.g. \"observed_at:15m\", \"observed_at:1h\", \"observed_at:1d\"). Default is 15-minute buckets.")] string bucket = "observed_at:15m",
             CancellationToken cancellationToken = default)
         {
-            if(metricIds is null || metricIds.Length == 0)
+            return await ToolErrorHandling.RunAsync("get_metric_time_series", async () =>
             {
-                throw new ArgumentException("At least one metric id must be provided.", nameof(metricIds));
-            }
-
-            if(fromUtc >= toUtc)
-            {
-                throw new ArgumentException("fromUtc must be earlier than toUtc.", nameof(fromUtc));
-            }
-
-            var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
-            var reporter = new ArcGisMonitorExcelReporter();
-
-            using var connection = await reporter.ConnectAsync(configuration, cancellationToken).ConfigureAwait(false);
-
-            Log.Information("Fetching time series for {Count} metric(s) with bucket {Bucket}", metricIds.Length, bucket);
-
-            var response = await connection.Queries.GetMetricTimeSeriesAsync(
-                metricIds,
-                fromUtc,
-                toUtc,
-                bucket,
-                cancellationToken: cancellationToken).ConfigureAwait(false);
-
-            var series = response.Features
-                .Select(f => new
+                if(metricIds is null || metricIds.Length == 0)
                 {
-                    metricId = f.Attributes.Id,
-                    metricName = f.Attributes.Name,
-                    componentId = f.Attributes.ComponentId,
-                    componentName = f.Attributes.ComponentName,
-                    unit = f.Attributes.Unit,
-                    dataPoints = (f.MetricsData ?? [])
-                        .Select(d => new
-                        {
-                            observedAt = d.Attributes.ObservedAt,
-                            avg = d.Attributes.AvgValue,
-                            min = d.Attributes.MinValue,
-                            max = d.Attributes.MaxValue,
-                            stdDev = d.Attributes.StdDevValue,
-                            p95 = d.Attributes.Percentile95Value,
-                            sum = d.Attributes.SumValue,
-                            count = d.Attributes.CountValue
-                        })
-                        .ToList()
-                })
-                .ToList();
+                    throw new ArgumentException("At least one metric id must be provided.", nameof(metricIds));
+                }
 
-            return JsonSerializer.Serialize(new { bucket, fromUtc, toUtc, metrics = series }, ResponseJsonOptions);
+                if(fromUtc >= toUtc)
+                {
+                    throw new ArgumentException("fromUtc must be earlier than toUtc.", nameof(fromUtc));
+                }
+
+                var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
+                var reporter = new ArcGisMonitorExcelReporter();
+
+                using var connection = await reporter.ConnectAsync(configuration, cancellationToken).ConfigureAwait(false);
+
+                Log.Information("Fetching time series for {Count} metric(s) with bucket {Bucket}", metricIds.Length, bucket);
+
+                var response = await connection.Queries.GetMetricTimeSeriesAsync(
+                    metricIds,
+                    fromUtc,
+                    toUtc,
+                    bucket,
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+
+                var series = response.Features
+                    .Select(f => new
+                    {
+                        metricId = f.Attributes.Id,
+                        metricName = f.Attributes.Name,
+                        componentId = f.Attributes.ComponentId,
+                        componentName = f.Attributes.ComponentName,
+                        unit = f.Attributes.Unit,
+                        dataPoints = (f.MetricsData ?? [])
+                            .Select(d => new
+                            {
+                                observedAt = d.Attributes.ObservedAt,
+                                avg = d.Attributes.AvgValue,
+                                min = d.Attributes.MinValue,
+                                max = d.Attributes.MaxValue,
+                                stdDev = d.Attributes.StdDevValue,
+                                p95 = d.Attributes.Percentile95Value,
+                                sum = d.Attributes.SumValue,
+                                count = d.Attributes.CountValue
+                            })
+                            .ToList()
+                    })
+                    .ToList();
+
+                return JsonSerializer.Serialize(new { bucket, fromUtc, toUtc, metrics = series }, ResponseJsonOptions);
+            }).ConfigureAwait(false);
         }
 
         [McpServerTool(Name = "list_open_alerts"),
@@ -277,46 +289,49 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
             [Description("Number of records per page when paginating through ArcGIS Monitor. Default is 100.")] int pageSize = 100,
             CancellationToken cancellationToken = default)
         {
-            var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
-            var reporter = new ArcGisMonitorExcelReporter();
+            return await ToolErrorHandling.RunAsync("list_open_alerts", async () =>
+            {
+                var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
+                var reporter = new ArcGisMonitorExcelReporter();
 
-            using var connection = await reporter.ConnectAsync(configuration, cancellationToken).ConfigureAwait(false);
+                using var connection = await reporter.ConnectAsync(configuration, cancellationToken).ConfigureAwait(false);
 
-            var resolvedToUtc = toUtc ?? DateTimeOffset.UtcNow;
-            var resolvedFromUtc = fromUtc ?? resolvedToUtc.AddDays(-1);
-            var componentTypes = string.IsNullOrWhiteSpace(componentType) ? null : new List<string> { componentType };
+                var resolvedToUtc = toUtc ?? DateTimeOffset.UtcNow;
+                var resolvedFromUtc = fromUtc ?? resolvedToUtc.AddDays(-1);
+                var componentTypes = string.IsNullOrWhiteSpace(componentType) ? null : new List<string> { componentType };
 
-            Log.Information("Listing open alerts for collection {Collection}, type {Type}", collectionName, componentType);
+                Log.Information("Listing open alerts for collection {Collection}, type {Type}", collectionName, componentType);
 
-            var components = await connection.Queries.GetAllComponentsWithMetricsAsync(
-                string.IsNullOrWhiteSpace(collectionName) ? "*" : collectionName,
-                resolvedFromUtc,
-                resolvedToUtc,
-                pageSize,
-                componentTypes,
-                cancellationToken).ConfigureAwait(false);
+                var components = await connection.Queries.GetAllComponentsWithMetricsAsync(
+                    string.IsNullOrWhiteSpace(collectionName) ? "*" : collectionName,
+                    resolvedFromUtc,
+                    resolvedToUtc,
+                    pageSize,
+                    componentTypes,
+                    cancellationToken).ConfigureAwait(false);
 
-            var openAlerts = components
-                .SelectMany(c => c.Metrics ?? [])
-                .SelectMany(m => m.Alerts ?? [])
-                .Where(a => string.Equals(a.Attributes.State, "open", StringComparison.OrdinalIgnoreCase))
-                .Select(a => new
-                {
-                    alertId = a.Attributes.Id,
-                    state = a.Attributes.State,
-                    openedAt = a.Attributes.OpenedAt,
-                    componentId = a.Attributes.ComponentId,
-                    componentName = a.Attributes.ComponentName,
-                    componentType = a.Attributes.ComponentType,
-                    metricId = a.Attributes.MetricId,
-                    metricName = a.Attributes.MetricName,
-                    metricUnit = a.Attributes.MetricUnit,
-                    warningThreshold = a.Attributes.WarningThreshold,
-                    criticalThreshold = a.Attributes.CriticalThreshold
-                })
-                .ToList();
+                var openAlerts = components
+                    .SelectMany(c => c.Metrics ?? [])
+                    .SelectMany(m => m.Alerts ?? [])
+                    .Where(a => string.Equals(a.Attributes.State, "open", StringComparison.OrdinalIgnoreCase))
+                    .Select(a => new
+                    {
+                        alertId = a.Attributes.Id,
+                        state = a.Attributes.State,
+                        openedAt = a.Attributes.OpenedAt,
+                        componentId = a.Attributes.ComponentId,
+                        componentName = a.Attributes.ComponentName,
+                        componentType = a.Attributes.ComponentType,
+                        metricId = a.Attributes.MetricId,
+                        metricName = a.Attributes.MetricName,
+                        metricUnit = a.Attributes.MetricUnit,
+                        warningThreshold = a.Attributes.WarningThreshold,
+                        criticalThreshold = a.Attributes.CriticalThreshold
+                    })
+                    .ToList();
 
-            return JsonSerializer.Serialize(new { fromUtc = resolvedFromUtc, toUtc = resolvedToUtc, count = openAlerts.Count, alerts = openAlerts }, ResponseJsonOptions);
+                return JsonSerializer.Serialize(new { fromUtc = resolvedFromUtc, toUtc = resolvedToUtc, count = openAlerts.Count, alerts = openAlerts }, ResponseJsonOptions);
+            }).ConfigureAwait(false);
         }
     }
 }
