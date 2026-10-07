@@ -1,0 +1,8 @@
+[mcp_servers.arcgis-monitor-excel-reporter]
+command = 'ArcGISMonitorExcelReporterMcp\bin\Debug\net8.0\ArcGISMonitorExcelReporterMcp.exe'
+
+[mcp_servers.arcgis-monitor-excel-reporter-cloud]
+url = "https://ca-arcgis-mcp.purplefield-ea05dbd0.eastus.azurecontainerapps.io/mcp"
+
+[mcp_servers.arcgis-monitor-excel-reporter-cloud.env_http_headers]
+X-Api-Key = "ARCGIS_MCP_API_KEY"

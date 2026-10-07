@@ -370,3 +370,6 @@ BuildNumber.txt
 LastDatePrefix.txt
 BuildNumberFromCI.txt
 VersionInfo.g.cs
+
+# Per-developer VS Code settings
+.vscode/
