@@ -20,7 +20,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tests
             const string serverError = "Error HTTP 404 Not Found. Body: {\"success\":false,\"error\":{\"code\":\"E_ROUTE_NOT_FOUND\"}}";
 
             var exception = await Assert.ThrowsAsync<McpException>(
-                () => ToolErrorHandling.RunAsync("test_tool", () => throw new HttpRequestException(serverError)));
+                () => ToolErrorHandling.RunAsync<string>("test_tool", () => throw new HttpRequestException(serverError)));
 
             Assert.Contains("HttpRequestException", exception.Message);
             Assert.Contains("E_ROUTE_NOT_FOUND", exception.Message);
@@ -33,7 +33,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tests
             var original = new McpException("already client-facing");
 
             var exception = await Assert.ThrowsAsync<McpException>(
-                () => ToolErrorHandling.RunAsync("test_tool", () => throw original));
+                () => ToolErrorHandling.RunAsync<string>("test_tool", () => throw original));
 
             Assert.Same(original, exception);
         }
@@ -42,7 +42,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tests
         public async Task RunAsync_WhenBodyIsCancelled_PropagatesCancellation()
         {
             await Assert.ThrowsAsync<OperationCanceledException>(
-                () => ToolErrorHandling.RunAsync("test_tool", () => throw new OperationCanceledException()));
+                () => ToolErrorHandling.RunAsync<string>("test_tool", () => throw new OperationCanceledException()));
         }
 
         [Fact]

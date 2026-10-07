@@ -147,5 +147,43 @@ namespace ArcGISMonitorExcelReporterMcp.Tests
 
             Assert.IsType<InvalidOperationException>(exception.InnerException);
         }
+
+        [Theory]
+        [InlineData("observed_at:15m", "observed_at:15m")]
+        [InlineData("5m", "observed_at:5m")]
+        [InlineData("observed_at:hour", "observed_at:hour")]
+        [InlineData("1h", "observed_at:hour")]
+        [InlineData("observed_at:60m", "observed_at:hour")]
+        [InlineData("DAY", "observed_at:day")]
+        [InlineData("observed_at:1d", "observed_at:day")]
+        [InlineData("", "observed_at:15m")]
+        public void NormalizeBucket_WithSupportedInterval_ReturnsMonitorBucket(string bucket, string expected)
+        {
+            Assert.Equal(expected, ComponentMetricTools.NormalizeBucket(bucket));
+        }
+
+        [Theory]
+        [InlineData("observed_at:30m")]
+        [InlineData("2h")]
+        [InlineData("week")]
+        public void NormalizeBucket_WithUnsupportedInterval_ThrowsArgumentException(string bucket)
+        {
+            Assert.Throws<ArgumentException>(() => ComponentMetricTools.NormalizeBucket(bucket));
+        }
+
+        [Fact]
+        public async Task GetMetricTimeSeriesAsync_WithUnsupportedBucket_ThrowsBeforeContactingServer()
+        {
+            var exception = await Assert.ThrowsAsync<McpException>(
+                () => ComponentMetricTools.GetMetricTimeSeriesAsync(
+                    metricIds: [101],
+                    fromUtc: DateTimeOffset.UtcNow.AddHours(-1),
+                    toUtc: DateTimeOffset.UtcNow,
+                    configJson: ValidConfigJson,
+                    bucket: "30m"));
+
+            Assert.IsType<ArgumentException>(exception.InnerException);
+            Assert.Contains("Unsupported bucket", exception.Message);
+        }
     }
 }
