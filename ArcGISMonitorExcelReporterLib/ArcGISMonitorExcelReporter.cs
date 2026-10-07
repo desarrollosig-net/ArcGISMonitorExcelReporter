@@ -160,6 +160,33 @@ namespace ArcGISMonitorExcelReporterLib
         }
 
         /// <summary>
+        /// Authenticates against ArcGIS Monitor and returns a ready-to-use connection for
+        /// low-level queries (components, metrics, time series) without going through the
+        /// full report-building pipeline.
+        /// </summary>
+        /// <param name="configuration">Configuration containing server connection details.</param>
+        /// <param name="cancellationToken">Optional cancellation token.</param>
+        /// <returns>An authenticated <see cref="ArcGisMonitorConnection"/>. Dispose when finished.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if configuration is null.</exception>
+        /// <exception cref="InvalidOperationException">Thrown if configuration validation or authentication fails.</exception>
+        /// <exception cref="HttpRequestException">Thrown if communication with ArcGIS Monitor fails.</exception>
+        public async Task<ArcGisMonitorConnection> ConnectAsync(
+            ReporterConfiguration configuration,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+            configuration.Validate();
+
+            var client = CreateClient(configuration);
+            await client.AuthenticateAsync(
+                configuration.Server.Username,
+                configuration.Server.GetPassword(),
+                cancellationToken).ConfigureAwait(false);
+
+            return new ArcGisMonitorConnection(client);
+        }
+
+        /// <summary>
         /// Loads configuration from a JSON file and generates an Excel report.
         /// </summary>
         /// <param name="configurationPath">Path to the JSON configuration file.</param>

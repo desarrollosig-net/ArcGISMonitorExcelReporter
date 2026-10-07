@@ -824,10 +824,10 @@ namespace ArcGISMonitorExcelReporterLib.Reporting
 
             foreach(var metric in uniqueMetrics)
             {
-                // La API devuelve un registro agregado por métrica con groupbyFieldsForStatistics
+                // The API returns one aggregated record per metric via groupbyFieldsForStatistics
                 var aggregatedData = metricData.FirstOrDefault(md => md.MetricId == metric.MetricId);
 
-                // Usar directamente los valores agregados de la API
+                // Use the API's aggregated values directly
                 var count = aggregatedData?.CountValue ?? 0;
                 var minValue = aggregatedData?.MinValue;
                 var maxValue = aggregatedData?.MaxValue;
