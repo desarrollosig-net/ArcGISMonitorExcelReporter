@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Text.Json;
 
 using ArcGISMonitorExcelReporterLib;
+using ArcGISMonitorExcelReporterLib.Reporting;
 
 using ModelContextProtocol.Server;
 
@@ -201,7 +202,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
                             min = stats?.MinValue,
                             max = stats?.MaxValue,
                             stdDev = stats?.StdDevValue,
-                            p95 = stats?.Percentile95Value,
+                            p95 = EstimateP95(stats?.AvgValue, stats?.StdDevValue, stats?.MaxValue, stats?.Percentile95Value),
                             sum = stats?.SumValue,
                             count = stats?.CountValue
                         };
@@ -220,7 +221,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
             [Description("End of the time series period (UTC).")] DateTimeOffset toUtc,
             [Description("Path to a JSON configuration file on disk. Provide this or configJson, not both. Only available over stdio transport; rejected when the server runs in --http mode.")] string? configPath = null,
             [Description("Inline JSON configuration content (same shape as the config file). Provide this or configPath, not both.")] string? configJson = null,
-            [Description("Time bucket for aggregation, as \"observed_at:<interval>\" (e.g. \"observed_at:15m\", \"observed_at:1h\", \"observed_at:1d\"). Default is 15-minute buckets.")] string bucket = "observed_at:15m",
+            [Description("Time bucket for aggregation: \"5m\", \"15m\", \"hour\" or \"day\", optionally prefixed with \"observed_at:\". Aliases \"1h\"/\"60m\" and \"1d\"/\"24h\" are accepted. Default is 15-minute buckets.")] string bucket = "observed_at:15m",
             CancellationToken cancellationToken = default)
         {
             return await ToolErrorHandling.RunAsync("get_metric_time_series", async () =>
@@ -234,6 +235,8 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
                 {
                     throw new ArgumentException("fromUtc must be earlier than toUtc.", nameof(fromUtc));
                 }
+
+                bucket = NormalizeBucket(bucket);
 
                 var configuration = await ConfigurationLoader.LoadConfigurationAsync(configPath, configJson, cancellationToken).ConfigureAwait(false);
                 var reporter = new ArcGisMonitorExcelReporter();
@@ -258,6 +261,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
                         componentName = f.Attributes.ComponentName,
                         unit = f.Attributes.Unit,
                         dataPoints = (f.MetricsData ?? [])
+                            .OrderBy(d => d.Attributes.ObservedAt)
                             .Select(d => new
                             {
                                 observedAt = d.Attributes.ObservedAt,
@@ -265,7 +269,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
                                 min = d.Attributes.MinValue,
                                 max = d.Attributes.MaxValue,
                                 stdDev = d.Attributes.StdDevValue,
-                                p95 = d.Attributes.Percentile95Value,
+                                p95 = EstimateP95(d.Attributes.AvgValue, d.Attributes.StdDevValue, d.Attributes.MaxValue, d.Attributes.Percentile95Value),
                                 sum = d.Attributes.SumValue,
                                 count = d.Attributes.CountValue
                             })
@@ -333,5 +337,50 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
                 return JsonSerializer.Serialize(new { fromUtc = resolvedFromUtc, toUtc = resolvedToUtc, count = openAlerts.Count, alerts = openAlerts }, ResponseJsonOptions);
             }).ConfigureAwait(false);
         }
+
+        /// <summary>
+        /// Maps a caller-supplied bucket to one ArcGIS Monitor actually honors. Monitor only groups
+        /// metrics_data by "observed_at:5m", "observed_at:15m", "observed_at:hour" and
+        /// "observed_at:day"; any other token (e.g. "1h", "30m", "1d") is silently ignored and the
+        /// whole range collapses into a single aggregate with no observed_at, so unsupported values
+        /// are rejected instead of being passed through.
+        /// </summary>
+        /// <param name="bucket">The bucket, with or without the "observed_at:" prefix.</param>
+        /// <returns>The normalized bucket, e.g. "observed_at:hour".</returns>
+        /// <exception cref="ArgumentException">Thrown when the interval is not supported.</exception>
+        internal static string NormalizeBucket(string? bucket)
+        {
+            const string Prefix = "observed_at:";
+
+            var interval = (bucket ?? string.Empty).Trim();
+            if(interval.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                interval = interval[Prefix.Length..];
+            }
+
+            var normalized = interval.ToLowerInvariant() switch
+            {
+                "" or "15m" => "15m",
+                "5m" => "5m",
+                "hour" or "1h" or "60m" => "hour",
+                "day" or "1d" or "24h" => "day",
+                _ => throw new ArgumentException(
+                    $"Unsupported bucket '{bucket}'. ArcGIS Monitor only supports \"5m\", \"15m\", \"hour\" and \"day\".",
+                    nameof(bucket))
+            };
+
+            return Prefix + normalized;
+        }
+
+        /// <summary>
+        /// Estimates the 95th percentile the same way the Excel report does: ArcGIS Monitor does not
+        /// return percentile_95, so it is derived from avg, stddev and max, falling back to the raw
+        /// server value when those are missing. Rounded to 2 decimals to match the other statistics
+        /// Monitor returns.
+        /// </summary>
+        private static double? EstimateP95(double? avg, double? stdDev, double? max, double? serverP95)
+            => MonitorReportMapper.CalculateNormalP95(avg, stdDev, max) is double p95
+                ? Math.Round(p95, 2)
+                : serverP95;
     }
 }
