@@ -84,6 +84,9 @@ static async Task RunHttpServerAsync(string[] args)
     // on the server's disk. Clients pass credentials inline via configJson instead.
     ConfigurationLoader.AllowConfigPath = false;
 
+    // Remote clients can't read the server's disk, so generated reports are returned inline.
+    MonitorReportTools.EmbedGeneratedReport = true;
+
     var apiKeys = LoadApiKeys();
 
     var remainingArgs = args.Where(a => a != "--http").ToArray();

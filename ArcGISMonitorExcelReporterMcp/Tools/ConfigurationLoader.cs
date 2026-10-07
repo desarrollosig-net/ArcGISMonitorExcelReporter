@@ -9,9 +9,12 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
     /// </summary>
     internal static class ConfigurationLoader
     {
+        // CamelCase keeps library models (e.g. report collection rows) consistent with the
+        // camelCase anonymous objects the tools build; explicit [JsonPropertyName]s still win.
         public static readonly JsonSerializerOptions ResponseJsonOptions = new()
         {
-            WriteIndented = true
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
         /// <summary>

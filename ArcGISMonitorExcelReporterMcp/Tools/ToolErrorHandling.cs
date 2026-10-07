@@ -25,7 +25,7 @@ namespace ArcGISMonitorExcelReporterMcp.Tools
         /// <param name="toolName">The MCP tool name, used for logging.</param>
         /// <param name="body">The tool implementation.</param>
         /// <returns>The tool result produced by <paramref name="body"/>.</returns>
-        public static async Task<string> RunAsync(string toolName, Func<Task<string>> body)
+        public static async Task<T> RunAsync<T>(string toolName, Func<Task<T>> body)
         {
             try
             {
